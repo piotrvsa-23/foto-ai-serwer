@@ -25,7 +25,7 @@ log_elapsed "=== [1/4] Struktura folderow /workspace ==="
 mkdir -p /workspace/input
 mkdir -p /workspace/output
 mkdir -p /workspace/cache
-mkdir -p /workspace/comfyui/models/{diffusion_models,text_encoders,vae,model_patches,facerestore_models,face_restoration}
+mkdir -p /workspace/comfyui/models/{diffusion_models,text_encoders,vae,model_patches,facerestore_models,face_restoration,loras}
 echo "OK"
 
 log_elapsed "=== [2/4] Modele AI (patrz scripts/download_models.sh po szczegoly) ==="

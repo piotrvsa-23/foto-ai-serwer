@@ -16,9 +16,9 @@ set -euo pipefail
 COMFY_MODELS="/workspace/comfyui/models"
 
 download() {
-    local repo="$1" path="$2" dest="$3"
+    local repo="$1" path="$2" dest="$3" rename="${4:-}"
     local url="https://huggingface.co/${repo}/resolve/main/${path}"
-    local out="${dest}/$(basename "$path")"
+    local out="${dest}/${rename:-$(basename "$path")}"
     mkdir -p "$dest"
     if [ -f "$out" ]; then
         echo "[pomijam - juz istnieje] $out"
@@ -68,11 +68,19 @@ else
     echo "[pomijam - juz istnieje] ${COMFY_MODELS}/facerestore_models/codeformer.pth"
 fi
 
-echo "=== LoRA (Lightning / przyspieszajace) ==="
-echo "POMINIETO CELOWO: brief nie precyzuje konkretnego pliku/repo LoRA,"
-echo "a zgadywanie pinowanej sciezki bez weryfikacji byloby ryzykowne."
-echo "Dodaj LoRA recznie przez ComfyUI-Manager w UI, gdy zdecydujesz ktora"
-echo "wersja (Flux Lightning / Qwen Lightning) jest potrzebna do workflow."
+echo "=== LoRA (Lightning / przyspieszajace - skrocenie liczby krokow) ==="
+# Qwen-Image-Edit-2511-Lightning - dedykowana dla naszej dokladnej wersji
+# Qwen (2511), 4 kroki zamiast ~40 (lightx2v/ModelTC, oficjalne repo autorow
+# dystylacji, wprost dopasowane do naszej pinowanej wersji modelu).
+download "lightx2v/Qwen-Image-Edit-2511-Lightning" "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors" "${COMFY_MODELS}/loras"
+# FLUX.1-Turbo-Alpha - LoRA dla bazowego Flux.1-dev, potwierdzona kompatybilnosc
+# z Kontext-dev przez sam black-forest-labs (dyskusja #19 w ich repo). Wybrana
+# zamiast mniejszych, mniej znanych "Kontext-Lightning" forkow spolecznosci -
+# alimama-creative to uznane, sprawdzone zrodlo LoRA przyspieszajacych Flux.
+# Plik w repo nazywa sie ogolnie "diffusion_pytorch_model.safetensors" -
+# zapisujemy pod czytelniejsza nazwa (funkcja download() to obsluguje bez
+# psucia idempotencji przy kolejnych uruchomieniach).
+download "alimama-creative/FLUX.1-Turbo-Alpha" "diffusion_pytorch_model.safetensors" "${COMFY_MODELS}/loras" "flux1-turbo-alpha.safetensors"
 
 echo "=== Gotowe. Rozmiar /workspace/comfyui/models: ==="
 du -sh "${COMFY_MODELS}" 2>/dev/null || true
