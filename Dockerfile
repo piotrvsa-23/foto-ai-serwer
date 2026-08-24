@@ -106,3 +106,28 @@ RUN git clone --depth 1 --branch 0.9.8-Beta https://github.com/mcmonkeyprojects/
 # uzytkownika/srodowiska, nie czesc samego builda obrazu.
 
 RUN echo "swarmui: 0.9.8-Beta" | tee -a /opt/build-versions.txt
+
+# ==============================================================================
+# ETAP 4: InvokeAI — w OSOBNYM, izolowanym srodowisku (koncepcja-i-zasady-
+# budowy.md, pkt 4.3): wlasny venv, wlasny Python 3.12, wlasny PyTorch.
+# Blad/aktualizacja InvokeAI nie moze wplynac na ComfyUI/SwarmUI i odwrotnie.
+# ==============================================================================
+
+# uv — oficjalny, rekomendowany instalator InvokeAI (zarzadza tez wlasnym,
+# izolowanym Pythonem 3.12 - "only-managed" - wiec nie potrzebujemy apt
+# python3.12 obok python3.11 uzywanego przez ComfyUI)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+# InvokeAI v6.9.0 — najnowszy stabilny tag (po v6.9.0rc1-3) zweryfikowany
+# w repo. --torch-backend=cu130 zgodnie z CUDA 13.0 reszty obrazu (uv wspiera
+# cu130 od PR astral-sh/uv#16321).
+RUN uv venv --relocatable --prompt invoke --python 3.12 --python-preference only-managed \
+        /workspace/invokeai/.venv \
+    && uv pip install --python /workspace/invokeai/.venv/bin/python \
+        invokeai==6.9.0 --torch-backend=cu130 \
+    && rm -rf /root/.cache/uv
+
+RUN /workspace/invokeai/.venv/bin/python -c \
+        "import importlib.metadata as m; print('invokeai:', m.version('invokeai'))" \
+    | tee -a /opt/build-versions.txt
