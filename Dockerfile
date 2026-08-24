@@ -46,3 +46,23 @@ RUN python3 -c "import torch; print('torch:', torch.__version__); print('cuda (b
     | tee /opt/build-versions.txt
 
 WORKDIR /workspace
+
+# ==============================================================================
+# ETAP 2: ComfyUI + ComfyUI-Manager
+# Wersje sprawdzone bezposrednio w tagach repo (sierpien 2026), nie z pamieci.
+# ==============================================================================
+
+# ComfyUI v0.33.3 — najnowszy stabilny tag w momencie budowy
+RUN git clone --depth 1 --branch v0.33.3 https://github.com/comfy-org/ComfyUI.git /workspace/comfyui \
+    && pip install --break-system-packages -r /workspace/comfyui/requirements.txt
+
+# ComfyUI-Manager 4.2.2 — jako custom node, siatka bezpieczenstwa dla wtyczek
+# (koncepcja-i-zasady-budowy.md, pkt 4.7)
+RUN git clone --depth 1 --branch 4.2.2 https://github.com/Comfy-Org/ComfyUI-Manager.git \
+        /workspace/comfyui/custom_nodes/ComfyUI-Manager \
+    && pip install --break-system-packages -r /workspace/comfyui/custom_nodes/ComfyUI-Manager/requirements.txt
+
+RUN { \
+        echo "comfyui: v0.33.3"; \
+        echo "comfyui-manager: 4.2.2"; \
+    } | tee -a /opt/build-versions.txt
