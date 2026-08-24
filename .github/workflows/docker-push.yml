@@ -1,0 +1,51 @@
+name: Wypchnij obraz na Docker Hub
+
+# Uruchamiany RECZNIE (workflow_dispatch), nigdy automatycznie przy pushu -
+# push na Docker Hub to swiadomy krok, nie efekt uboczny commita.
+# Zaklada, ze docker-build-test.yml juz potwierdzil, ze obraz sie buduje.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag obrazu (oprocz 'latest', ktory zawsze jest dodawany)"
+        required: true
+        default: "v1"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Zwolnij miejsce na dysku runnera
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Ustaw Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Zaloguj do Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Zbuduj i wypchnij obraz
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/foto-ai-serwer:${{ github.event.inputs.tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/foto-ai-serwer:latest
+          cache-from: type=gha
+          cache-to: type=gha
