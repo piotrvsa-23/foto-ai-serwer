@@ -72,3 +72,34 @@ RUN { \
         echo "comfyui: v0.33.3"; \
         echo "comfyui-manager: 4.2.2"; \
     } | tee -a /opt/build-versions.txt
+
+# ==============================================================================
+# ETAP 3: SwarmUI
+# Nakladka codziennej pracy (koncepcja-i-zasady-budowy.md, pkt 2.3).
+# SwarmUI to aplikacja .NET - kompilujemy ja RAZ, tutaj, w obrazie (a nie przy
+# kazdym starcie poda), zeby start poda nie zalezal od pobierania paczek NuGet
+# z internetu za kazdym razem.
+# ==============================================================================
+
+# .NET 8 SDK — oficjalny skrypt instalacyjny Microsoftu (wersja pinowana,
+# nie apt z domyslnego repo, ktore na Ubuntu 22.04 bywa niezgodne/przestarzale)
+ENV DOTNET_ROOT=/usr/share/dotnet \
+    PATH="/usr/share/dotnet:${PATH}" \
+    DOTNET_NOLOGO=1 \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1
+RUN curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+    && chmod +x /tmp/dotnet-install.sh \
+    && /tmp/dotnet-install.sh --channel 8.0 --install-dir /usr/share/dotnet \
+    && rm /tmp/dotnet-install.sh
+
+# SwarmUI 0.9.8-Beta — najnowszy tag w momencie budowy (projekt uzywa "Beta"
+# jako stalego oznaczenia etapu rozwoju, nie sygnalu niestabilnosci)
+RUN git clone --depth 1 --branch 0.9.8-Beta https://github.com/mcmonkeyprojects/SwarmUI.git /workspace/swarmui \
+    && cd /workspace/swarmui \
+    && dotnet build src/SwarmUI.csproj -c Release
+
+# Backend (polaczenie z ComfyUI z etapu 2, zamiast pobierania wlasnej kopii)
+# konfigurujemy w skrypcie startowym (etap: skrypt startowy) - to ustawienie
+# uzytkownika/srodowiska, nie czesc samego builda obrazu.
+
+RUN echo "swarmui: 0.9.8-Beta" | tee -a /opt/build-versions.txt
