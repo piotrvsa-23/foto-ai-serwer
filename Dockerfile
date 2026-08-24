@@ -94,16 +94,40 @@ RUN curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
 
 # SwarmUI 0.9.8-Beta — najnowszy tag w momencie budowy (projekt uzywa "Beta"
 # jako stalego oznaczenia etapu rozwoju, nie sygnalu niestabilnosci)
-# Po buildzie czyscimy cache NuGet i posrednie pliki kompilacji (obj/) -
-# nie sa potrzebne w finalnym obrazie, tylko zajmuja miejsce.
+# Budujemy DOKLADNIE tak, jak robi to oficjalny launch-linux.sh/linux-build-
+# logic.sh (sprawdzone w zrodle SwarmUI) - wyjscie do src/bin/live_release,
+# bo tej sciezki oczekuje launch-linux.sh. Po buildzie czyscimy cache NuGet
+# i posrednie pliki kompilacji (obj/) - nie sa potrzebne w finalnym obrazie.
 RUN git clone --depth 1 --branch 0.9.8-Beta https://github.com/mcmonkeyprojects/SwarmUI.git /workspace/swarmui \
     && cd /workspace/swarmui \
-    && dotnet build src/SwarmUI.csproj -c Release \
+    && dotnet build src/SwarmUI.csproj --configuration Release -o ./src/bin/live_release \
+    && git rev-parse HEAD > ./src/bin/last_build \
     && rm -rf /workspace/swarmui/src/obj ~/.nuget/packages /tmp/NuGetScratch
 
-# Backend (polaczenie z ComfyUI z etapu 2, zamiast pobierania wlasnej kopii)
-# konfigurujemy w skrypcie startowym (etap: skrypt startowy) - to ustawienie
-# uzytkownika/srodowiska, nie czesc samego builda obrazu.
+# Backend ComfyUI wpisany na sztywno do Data/Backends.fds (zamiast klikania
+# w UI po kazdym starcie) - wskazuje na NASZ ComfyUI z etapu 2, wiec SwarmUI
+# NIE pobiera wlasnej, osobnej kopii. AutoUpdate/UpdateManagedNodes=false to
+# KLUCZOWE - domyslnie SwarmUI samo aktualizowaloby (git pull) nasz pinowany
+# ComfyUI i jego wtyczki przy kazdym starcie, co lamie zasade zamrozonych
+# wersji (koncepcja-i-zasady-budowy.md, pkt 4.2). Format zweryfikowany w
+# zrodle: BackendHandler.cs (Save/LoadInternal) i ComfyUISelfStartBackend.cs.
+RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.fds << 'EOF'
+0:
+    type: comfyui_selfstart
+    title: ComfyUI
+    enabled: true
+    settings:
+        StartScript: /workspace/comfyui/main.py
+        ExtraArgs: ""
+        DisableInternalArgs: false
+        AutoUpdate: false
+        UpdateManagedNodes: false
+        FrontendVersion: LatestSwarmValidated
+        EnablePreviews: true
+        GPU_ID: "0"
+        OverQueue: 1
+        AutoRestart: true
+EOF
 
 RUN echo "swarmui: 0.9.8-Beta" | tee -a /opt/build-versions.txt
 
