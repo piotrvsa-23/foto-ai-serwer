@@ -25,7 +25,9 @@ download() {
         return 0
     fi
     echo "[pobieram] ${repo}/${path} -> ${out}"
-    if ! wget --tries=3 --timeout=60 -q --show-progress -O "${out}.part" "$url"; then
+    if ! wget --tries=3 --timeout=60 --show-progress \
+            --header="User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
+            -O "${out}.part" "$url"; then
         rm -f "${out}.part"
         echo "BLAD: nie udalo sie pobrac ${url}" >&2
         echo "Sprawdz recznie na https://huggingface.co/${repo}/tree/main - nazwa pliku mogla sie zmienic." >&2
