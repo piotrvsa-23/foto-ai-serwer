@@ -94,9 +94,12 @@ RUN curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
 
 # SwarmUI 0.9.8-Beta — najnowszy tag w momencie budowy (projekt uzywa "Beta"
 # jako stalego oznaczenia etapu rozwoju, nie sygnalu niestabilnosci)
+# Po buildzie czyscimy cache NuGet i posrednie pliki kompilacji (obj/) -
+# nie sa potrzebne w finalnym obrazie, tylko zajmuja miejsce.
 RUN git clone --depth 1 --branch 0.9.8-Beta https://github.com/mcmonkeyprojects/SwarmUI.git /workspace/swarmui \
     && cd /workspace/swarmui \
-    && dotnet build src/SwarmUI.csproj -c Release
+    && dotnet build src/SwarmUI.csproj -c Release \
+    && rm -rf /workspace/swarmui/src/obj ~/.nuget/packages /tmp/NuGetScratch
 
 # Backend (polaczenie z ComfyUI z etapu 2, zamiast pobierania wlasnej kopii)
 # konfigurujemy w skrypcie startowym (etap: skrypt startowy) - to ustawienie

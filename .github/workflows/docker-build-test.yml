@@ -42,16 +42,15 @@ jobs:
       - name: Ustaw Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Bez load:true - obraz robi sie zbyt duzy zeby dodatkowo eksportowac go
+      # jeszcze raz do lokalnego Dockera (podwaja zapotrzebowanie na dysk w
+      # momencie eksportu). Wersje sprawdzamy z logow builda (RUN ... | tee
+      # /opt/build-versions.txt w Dockerfile drukuje je wprost do logu).
       - name: Zbuduj obraz (bez push)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
-          load: true
           tags: foto-ai-serwer:test
           cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Sprawdz zapisane wersje z builda
-        run: |
-          docker run --rm foto-ai-serwer:test cat /opt/build-versions.txt || true
+          cache-to: type=gha
