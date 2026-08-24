@@ -1,0 +1,54 @@
+name: Test builda obrazu Docker
+
+# Ten workflow TYLKO buduje obraz (walidacja, ze Dockerfile dziala,
+# ze wersje/zaleznosci sie zgadzaja) - NIE wypycha nic na Docker Hub
+# i NIE dotyka RunPod. Push na Docker Hub to osobny, swiadomy krok
+# wykonywany dopiero po potwierdzeniu, ze build przechodzi tutaj.
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'Dockerfile'
+      - 'scripts/**'
+      - 'config/**'
+      - '.github/workflows/docker-build-test.yml'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      # Standardowy runner GitHub ma ograniczony wolny dysk (~26GB) -
+      # ten obraz (CUDA devel + PyTorch + ComfyUI + SwarmUI + InvokeAI)
+      # moze byc duzy, wiec zwalniamy miejsce zajete przez preinstalowane
+      # narzedzia (Android SDK, .NET wersje ktorych nie uzywamy, itp.)
+      - name: Zwolnij miejsce na dysku runnera
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: false  # SwarmUI potrzebuje .NET - nie kasujemy
+          haskell: true
+          large-packages: true
+          swap-storage: true
+
+      - name: Ustaw Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Zbuduj obraz (bez push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: foto-ai-serwer:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sprawdz zapisane wersje z builda
+        run: |
+          docker run --rm foto-ai-serwer:test cat /opt/build-versions.txt || true
