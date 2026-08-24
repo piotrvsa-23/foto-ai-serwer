@@ -13,17 +13,26 @@
 set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
-echo "=== [1/4] Struktura folderow /workspace ==="
+START_TS=$(date +%s)
+log_elapsed() {
+    local now elapsed
+    now=$(date +%s)
+    elapsed=$((now - START_TS))
+    echo ">>> [$(date '+%H:%M:%S')] (+${elapsed}s od startu skryptu) $1"
+}
+
+log_elapsed "=== [1/4] Struktura folderow /workspace ==="
 mkdir -p /workspace/input
 mkdir -p /workspace/output
 mkdir -p /workspace/cache
 mkdir -p /workspace/comfyui/models/{diffusion_models,text_encoders,vae,model_patches,facerestore_models,face_restoration}
 echo "OK"
 
-echo "=== [2/4] Modele AI (patrz scripts/download_models.sh po szczegoly) ==="
+log_elapsed "=== [2/4] Modele AI (patrz scripts/download_models.sh po szczegoly) ==="
 bash "${SCRIPT_DIR}/download_models.sh"
+log_elapsed "Modele gotowe."
 
-echo "=== [3/4] Start InvokeAI (tlo, port 9090) ==="
+log_elapsed "=== [3/4] Start InvokeAI (tlo, port 9090) ==="
 export INVOKEAI_HOST=0.0.0.0
 export INVOKEAI_PORT=9090
 mkdir -p /workspace/invokeai/root
@@ -32,7 +41,9 @@ mkdir -p /workspace/invokeai/root
 INVOKEAI_PID=$!
 echo "InvokeAI PID ${INVOKEAI_PID}, log: /workspace/cache/invokeai.log"
 
-echo "=== [4/4] Start SwarmUI (pierwszy plan, port 7801) ==="
+log_elapsed "=== [4/4] Start SwarmUI (pierwszy plan, port 7801) ==="
 echo "SwarmUI uruchomi rowniez ComfyUI jako wlasny backend (Data/Backends.fds)."
+echo "Od tego momentu czas nie jest juz logowany przez ten skrypt - SwarmUI"
+echo "przejmuje pierwszy plan i loguje wlasny postep startu ponizej."
 cd /workspace/swarmui
 exec ./launch-linux.sh --launch_mode none --host 0.0.0.0
