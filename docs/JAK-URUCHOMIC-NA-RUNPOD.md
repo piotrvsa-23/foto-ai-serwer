@@ -92,7 +92,19 @@ linki (albo złóż je ręcznie z ID poda):
 - SwarmUI: `https://<ID-poda>-7801.proxy.runpod.net`
 - InvokeAI: `https://<ID-poda>-9090.proxy.runpod.net`
 
-Otwórz oba w przeglądarce — powinny pokazać interfejs, nie błąd.
+Otwórz oba w zwykłej przeglądarce (Chrome/Firefox na Twoim komputerze) —
+powinny pokazać interfejs, nie błąd.
+
+**WAŻNE — to NIE jest "jedno UI = jeden model".** Oba interfejsy dają
+dostęp do WSZYSTKICH pobranych modeli (Qwen, Flux) jednocześnie — model
+wybierasz z listy rozwijanej wewnątrz danego UI, przy każdej generacji.
+Różnica między SwarmUI a InvokeAI to sposób pracy, nie model:
+
+- **SwarmUI (port 7801)** — główne, codzienne narzędzie: opis słowny +
+  suwaki, całe zdjęcie naraz. Od tego zwykle zaczynasz.
+- **InvokeAI (port 9090)** — do precyzyjnej poprawki JEDNEGO wybranego
+  fragmentu zdjęcia (np. tylko rękaw, tylko fragment twarzy) — ma Unified
+  Canvas do tego. Otwierasz go tylko gdy potrzebujesz punktowej poprawki.
 
 **Checklista z briefu (sekcja 9) — warto przejść po pierwszym uruchomieniu:**
 - [ ] SwarmUI i InvokeAI oba się otwierają
@@ -103,12 +115,28 @@ Otwórz oba w przeglądarce — powinny pokazać interfejs, nie błąd.
 
 ---
 
-## 5. Praca ze zdjęciami
+## 5. Praca ze zdjęciami — upload i download
 
-- Wgrywaj zdjęcia wejściowe do `/workspace/input/` (przez Web Terminal —
-  upload plików, albo bezpośrednio przez UI SwarmUI/InvokeAI, które też
-  potrafią przyjmować pliki).
-- Gotowe wyniki lądują w `/workspace/output/`.
+**Na co dzień NIE potrzebujesz terminala ani SSH.** Oba UI (SwarmUI i
+InvokeAI) mają to wbudowane bezpośrednio w interfejs, w zwykłej
+przeglądarce:
+
+- **Upload (wgrywanie zdjęcia wejściowego):** przeciągnij i upuść plik w
+  odpowiednie pole w UI (np. pole obrazu wejściowego przy edycji), albo
+  kliknij je i wybierz plik z dysku — tak jak w każdej stronie internetowej.
+- **Download (pobieranie wyniku):** w galerii wyników w UI kliknij obraz i
+  pobierz go (przycisk pobierania albo zwykłe "zapisz obraz jako" prawym
+  przyciskiem myszy).
+
+To wystarczy do całej codziennej pracy.
+
+**Terminal (Web Terminal / przycisk "Connect" na stronie poda w RunPod —
+otwiera się w przeglądarce, NIE trzeba żadnego programu SSH) jest
+potrzebny tylko do rzeczy zaawansowanych:** podejrzenia logu InvokeAI
+(punkt 3), sprawdzenia `nvidia-smi`, albo masowego przenoszenia wielu
+plików naraz. Foldery `/workspace/input/` i `/workspace/output/` istnieją
+"pod spodem" i to tam UI zapisuje/czyta pliki — ale zwykle nie musisz tam
+zaglądać ręcznie.
 
 ---
 
