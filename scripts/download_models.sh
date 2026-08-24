@@ -43,7 +43,12 @@ download "Comfy-Org/Qwen-Image_ComfyUI" "split_files/vae/qwen_image_vae.safetens
 
 echo "=== Flux.1 Kontext Dev (FP8) ==="
 download "Comfy-Org/flux1-kontext-dev_ComfyUI" "split_files/diffusion_models/flux1-dev-kontext_fp8_scaled.safetensors" "${COMFY_MODELS}/diffusion_models"
-download "Comfy-Org/flux1-kontext-dev_ComfyUI" "split_files/vae/ae.safetensors" "${COMFY_MODELS}/vae"
+# UWAGA (sierpien 2026, naprawa 404): repo flux1-kontext-dev_ComfyUI NIE
+# zawiera folderu vae (tylko diffusion_models) - bledna sciezka z pierwszej
+# wersji skryptu, nie zmiana na HF. Flux Kontext Dev dzieli ten sam VAE co
+# reszta rodziny Flux - pobieramy z black-forest-labs/FLUX.1-schnell
+# (licencja Apache 2.0, bez logowania/gate, w przeciwienstwie do FLUX.1-dev).
+download "black-forest-labs/FLUX.1-schnell" "ae.safetensors" "${COMFY_MODELS}/vae"
 download "comfyanonymous/flux_text_encoders" "clip_l.safetensors" "${COMFY_MODELS}/text_encoders"
 download "comfyanonymous/flux_text_encoders" "t5xxl_fp8_e4m3fn_scaled.safetensors" "${COMFY_MODELS}/text_encoders"
 
