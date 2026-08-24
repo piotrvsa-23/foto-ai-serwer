@@ -23,18 +23,20 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v5
 
-      # Standardowy runner GitHub ma ograniczony wolny dysk (~26GB) -
+      # Standardowy runner GitHub ma ograniczony wolny dysk -
       # ten obraz (CUDA devel + PyTorch + ComfyUI + SwarmUI + InvokeAI)
-      # moze byc duzy, wiec zwalniamy miejsce zajete przez preinstalowane
-      # narzedzia (Android SDK, .NET wersje ktorych nie uzywamy, itp.)
+      # moze byc duzy, wiec agresywnie zwalniamy miejsce. .NET dla SwarmUI
+      # instalujemy WEWNATRZ obrazu (w Dockerfile) - preinstalowany .NET
+      # na samym runnerze jest wiec zbedny i mozna go bezpiecznie skasowac.
       - name: Zwolnij miejsce na dysku runnera
         uses: jlumbroso/free-disk-space@v1.3.1
         with:
-          tool-cache: false
+          tool-cache: true
           android: true
-          dotnet: false  # SwarmUI potrzebuje .NET - nie kasujemy
+          dotnet: true
           haskell: true
           large-packages: true
+          docker-images: true
           swap-storage: true
 
       - name: Ustaw Docker Buildx

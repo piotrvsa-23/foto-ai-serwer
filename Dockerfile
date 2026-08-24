@@ -10,7 +10,13 @@
 # CUDA 13.0.3 (patch aktualny na sierpien 2026) zamiast 12.8 z briefu — wsparcie
 # dla CUDA 12.8 zostalo wycofane z oficjalnych paczek PyTorch (pytorch/pytorch#180398).
 # RTX 4090 (Ada Lovelace) jest w pelni wspierana przez CUDA 13.0.
-FROM nvidia/cuda:13.0.3-cudnn-devel-ubuntu22.04
+#
+# Wariant "devel" (bez oddzielnego cuDNN systemowego) - paczki PyTorch cu130
+# niosa wlasne biblioteki CUDA/cuDNN w wheelu, wiec dodatkowy cudnn-devel
+# tylko zajmowalby miejsce bez korzysci. "devel" (nie "runtime") zostaje,
+# bo daje nvcc/naglowki potrzebne do kompilacji niektorych wtyczek ComfyUI
+# (np. wlasne rozszerzenia CUDA w SUPIR/ControlNet).
+FROM nvidia/cuda:13.0.3-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
