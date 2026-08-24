@@ -111,6 +111,10 @@ RUN git clone --depth 1 --branch 0.9.8-Beta https://github.com/mcmonkeyprojects/
 # ComfyUI i jego wtyczki przy kazdym starcie, co lamie zasade zamrozonych
 # wersji (koncepcja-i-zasady-budowy.md, pkt 4.2). Format zweryfikowany w
 # zrodle: BackendHandler.cs (Save/LoadInternal) i ComfyUISelfStartBackend.cs.
+# FrontendVersion=None z tego samego powodu: "LatestSwarmValidated" (domyslne)
+# przy starcie pip-installuje comfyui-frontend-package w STALEJ (nie "latest",
+# ale mimo to obcej) wersji 1.37.11, NADPISUJAC nasz pinowany w etapie 2
+# pakiet 1.49.6 - "None" uzywa dokladnie tego, co juz zaszylismy w obrazie.
 RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.fds << 'EOF'
 0:
     type: comfyui_selfstart
@@ -122,7 +126,7 @@ RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.f
         DisableInternalArgs: false
         AutoUpdate: false
         UpdateManagedNodes: false
-        FrontendVersion: LatestSwarmValidated
+        FrontendVersion: None
         EnablePreviews: true
         GPU_ID: "0"
         OverQueue: 1
