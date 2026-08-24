@@ -204,3 +204,13 @@ RUN { \
         echo "facerestore_cf: ff4d7a5"; \
         echo "comfyui_gfpgan: 77577e4"; \
     } | tee -a /opt/build-versions.txt
+
+# ==============================================================================
+# Skrypt startowy — jedyna rzecz uruchamiana automatycznie przy starcie poda.
+# Sam skrypt tylko dokłada dane (modele, foldery) i odpala silniki - nie
+# modyfikuje ich kodu (patrz komentarze w scripts/start.sh).
+# ==============================================================================
+COPY scripts/start.sh scripts/download_models.sh /workspace/scripts/
+RUN chmod +x /workspace/scripts/start.sh /workspace/scripts/download_models.sh
+
+CMD ["/workspace/scripts/start.sh"]
