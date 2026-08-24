@@ -120,12 +120,16 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
 # InvokeAI v6.9.0 — najnowszy stabilny tag (po v6.9.0rc1-3) zweryfikowany
-# w repo. --torch-backend=cu130 zgodnie z CUDA 13.0 reszty obrazu (uv wspiera
-# cu130 od PR astral-sh/uv#16321).
+# w repo. UWAGA: invokeai==6.9.0 wymaga sztywno torch>=2.7.0,<2.8.dev0, a
+# indeks cu130 nie ma w ogole wheeli torch w tym zakresie (dopiero 2.9+) -
+# uv sam to wychwycil bledem rozwiazywania zaleznosci przy pierwszej probie.
+# To srodowisko jest w pelni izolowane (wlasny venv/venv), wiec NIE musi
+# uzywac tej samej wersji CUDA co reszta obrazu - cu128 w pelni wspiera
+# RTX 4090 i ma wheelе torch 2.7.x wymagane przez ta wersje InvokeAI.
 RUN uv venv --relocatable --prompt invoke --python 3.12 --python-preference only-managed \
         /workspace/invokeai/.venv \
     && uv pip install --python /workspace/invokeai/.venv/bin/python \
-        invokeai==6.9.0 --torch-backend=cu130 \
+        invokeai==6.9.0 --torch-backend=cu128 \
     && rm -rf /root/.cache/uv
 
 RUN /workspace/invokeai/.venv/bin/python -c \
