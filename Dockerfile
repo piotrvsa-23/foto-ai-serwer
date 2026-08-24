@@ -135,3 +135,44 @@ RUN uv venv --relocatable --prompt invoke --python 3.12 --python-preference only
 RUN /workspace/invokeai/.venv/bin/python -c \
         "import importlib.metadata as m; print('invokeai:', m.version('invokeai'))" \
     | tee -a /opt/build-versions.txt
+
+# ==============================================================================
+# ETAP 5: Wtyczki ComfyUI (koncepcja-i-zasady-budowy.md, pkt 2.4)
+#
+# UWAGA: SUPIR jest juz WBUDOWANY w rdzen ComfyUI v0.33.3 (sprawdzone w
+# zrodle: comfy/ldm/supir/, ModelPatchLoader + SUPIRPatch w comfy_extras)
+# - osobna wtyczka kijai/ComfyUI-SUPIR jest wiec zbedna, celowo pominieta.
+# Podobnie ladowanie/zapis obrazu, maski i podstawowy loader LoRA to juz
+# rdzen ComfyUI - nie wymagaja osobnych wtyczek.
+#
+# Ponizsze repo NIE maja tagow wersji (male wtyczki spolecznosciowe, bez
+# wersjonowania) - pinujemy wiec do konkretnego commita (sprawdzonego przez
+# git ls-remote w dniu builda), a nie do "main"/"master" (koncepcja, pkt 4.2).
+# ==============================================================================
+
+# Preprocesory ControlNet (depth/pose/edge) - commit z dnia weryfikacji
+RUN git clone https://github.com/Fannovel16/comfyui_controlnet_aux.git \
+        /workspace/comfyui/custom_nodes/comfyui_controlnet_aux \
+    && cd /workspace/comfyui/custom_nodes/comfyui_controlnet_aux \
+    && git checkout e8b689a513c3e6b63edc44066560ca5919c0576e \
+    && pip install --break-system-packages -r requirements.txt
+
+# CodeFormer (rekonstrukcja twarzy) - commit z dnia weryfikacji
+RUN git clone https://github.com/mav-rik/facerestore_cf.git \
+        /workspace/comfyui/custom_nodes/facerestore_cf \
+    && cd /workspace/comfyui/custom_nodes/facerestore_cf \
+    && git checkout ff4d7a5c102441d8f058dd6135797ffb57b6c6ad \
+    && pip install --break-system-packages -r requirements.txt
+
+# GFPGAN (rekonstrukcja twarzy) - commit z dnia weryfikacji
+RUN git clone https://github.com/comfyorg/comfyui_gfpgan.git \
+        /workspace/comfyui/custom_nodes/comfyui_gfpgan \
+    && cd /workspace/comfyui/custom_nodes/comfyui_gfpgan \
+    && git checkout 77577e49ae49e59e44098549d8d04ab2cba87fda \
+    && pip install --break-system-packages -r requirements.txt
+
+RUN { \
+        echo "controlnet_aux: e8b689a"; \
+        echo "facerestore_cf: ff4d7a5"; \
+        echo "comfyui_gfpgan: 77577e4"; \
+    } | tee -a /opt/build-versions.txt
