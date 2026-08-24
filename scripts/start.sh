@@ -13,6 +13,17 @@
 set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
+# NAPRAWA DNS (sierpien 2026): obraz bazowy Ubuntu 22.04 ma /etc/resolv.conf
+# wskazujacy na systemd-resolved stub (127.0.0.53), ktory NIE dziala wewnatrz
+# kontenera Docker (brak systemd/init) - kazde zapytanie DNS (np. do
+# huggingface.co) konczy sie "Temporary failure in name resolution", na
+# KAZDYM podzie RunPod, niezaleznie od fizycznego wezla (potwierdzone: ten
+# sam blad wystapil na dwoch oddzielnych, swiezych podach). Nadpisujemy
+# resolv.conf publicznymi serwerami DNS na czas dzialania kontenera - nie
+# jest to trwala zmiana obrazu, wiec musi dziac sie tu, przy kazdym starcie.
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
 START_TS=$(date +%s)
 log_elapsed() {
     local now elapsed
