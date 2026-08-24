@@ -115,6 +115,14 @@ RUN git clone --depth 1 --branch 0.9.8-Beta https://github.com/mcmonkeyprojects/
 # przy starcie pip-installuje comfyui-frontend-package w STALEJ (nie "latest",
 # ale mimo to obcej) wersji 1.37.11, NADPISUJAC nasz pinowany w etapie 2
 # pakiet 1.49.6 - "None" uzywa dokladnie tego, co juz zaszylismy w obrazie.
+# DisableInternalArgs=true (sierpien 2026, naprawa realnego bledu na RunPod):
+# pierwsze uruchomienie konczylo sie "main.py: error: unrecognized arguments:"
+# (pusty argument) przy starcie ComfyUI przez SwarmUI - blad w mechanizmie
+# doklejania wewnetrznych argumentow (--extra-model-paths-config,
+# --preview-method itd, patrz ComfyUISelfStartBackend.cs Init()). Wylaczamy
+# ten mechanizm calkowicie - i tak jest zbedny, bo nasze modele juz siedza
+# w natywnym folderze ComfyUI (/workspace/comfyui/models/), wiec nie
+# potrzebujemy przekierowania sciezek modeli od SwarmUI.
 RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.fds << 'EOF'
 0:
     type: comfyui_selfstart
@@ -123,11 +131,10 @@ RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.f
     settings:
         StartScript: /workspace/comfyui/main.py
         ExtraArgs: ""
-        DisableInternalArgs: false
+        DisableInternalArgs: true
         AutoUpdate: false
         UpdateManagedNodes: false
         FrontendVersion: None
-        EnablePreviews: true
         GPU_ID: "0"
         OverQueue: 1
         AutoRestart: true
