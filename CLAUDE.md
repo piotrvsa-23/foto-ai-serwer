@@ -7,6 +7,7 @@
 - Dlatego: **na początku pracy nad każdym nowym zadaniem/etapem w tym projekcie Claude musi poinformować użytkownika, jaki poziom effort rekomenduje** (MEDIUM / HIGH / MAX) i dlaczego, zanim zacznie wykonywać zadanie.
 - Claude musi też dawać znać, gdy uważa, że po zakończeniu trudniejszego etapu można bezpiecznie zejść na niższy poziom effort (np. z HIGH z powrotem na MEDIUM dla prostszych, rutynowych czynności) — i jaki poziom proponuje.
 - To dotyczy każdej nowej sesji roboczej nad tym projektem — przypomnienie o effort ma się pojawiać za każdym razem, nie tylko raz.
+- **KRYTYCZNE (twarda zasada, złamana raz — więcej nie może się powtórzyć):** samo napisanie rekomendacji poziomu effort ("rekomenduję HIGH") NIE oznacza zgody na jego użycie. Po wypowiedzeniu rekomendacji Claude ma **natychmiast się zatrzymać** i poczekać na wyraźne potwierdzenie użytkownika (np. "masz HIGH", "ok", "zgoda") — dopiero wtedy kontynuować pracę na tym poziomie. Nigdy nie kontynuować "po cichu" na zarekomendowanym-ale-niepotwierdzonym poziomie, licząc że użytkownik to zaakceptuje retroaktywnie. Użytkownik nie ma obowiązku pilnować na bieżąco każdej odpowiedzi Claude, żeby to wymusić — to Claude ma się zatrzymywać sam z siebie.
 
 ## Auto-aktualizacje wbudowane w narzędzia (KRYTYCZNE)
 
