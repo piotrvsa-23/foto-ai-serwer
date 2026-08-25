@@ -150,6 +150,30 @@ RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.f
         AutoRestart: true
 EOF
 
+# Data/Settings.fds (sierpien 2026, naprawa "modele Qwen/Flux nie widoczne w
+# SwarmUI"): SwarmUI ma WLASNY, oddzielny folder modeli (domyslnie
+# /workspace/swarmui/Models/), calkowicie inny niz folder ComfyUI, gdzie
+# faktycznie ladujemy nasze modele (/workspace/comfyui/models/) - potwierdzone
+# zrodlowo w Settings.cs (PathsData.ModelRoot="Models", wzgledem katalogu
+# roboczego SwarmUI) i Program.cs (buildPathList). Przekierowujemy ModelRoot
+# na folder ComfyUI - to oficjalnie udokumentowana funkcja (komentarz przy
+# SDModelFolder: "'checkpoints' powinno byc uzyte dla pasowania do istniejacych
+# katalogow modeli ComfyUI"). Dodatkowo VAE/Lora/Embeddings maja DOMYSLNE nazwy
+# folderow z duzej litery (VAE, Lora, Embeddings) niezgodne z rzeczywistymi,
+# malymi nazwami folderow ComfyUI (vae, loras, embeddings) - na Linuksie
+# (rozroznianie wielkosci liter w systemie plikow) to bez jawnej poprawki
+# ponizej w ogole by nie znalazlo tych plikow.
+RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Settings.fds << 'EOF'
+Paths:
+    ModelRoot: /workspace/comfyui/models
+    SDModelFolder: checkpoints
+    SDVAEFolder: vae
+    SDLoraFolder: loras
+    SDEmbeddingFolder: embeddings
+    SDClipFolder: text_encoders;clip
+    SDClipVisionFolder: clip_vision
+EOF
+
 RUN echo "swarmui: 0.9.8-Beta" | tee -a /opt/build-versions.txt
 
 # ==============================================================================
