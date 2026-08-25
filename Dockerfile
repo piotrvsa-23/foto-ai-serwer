@@ -122,7 +122,15 @@ RUN git clone --depth 1 --branch 0.9.8-Beta https://github.com/mcmonkeyprojects/
 # --preview-method itd, patrz ComfyUISelfStartBackend.cs Init()). Wylaczamy
 # ten mechanizm calkowicie - i tak jest zbedny, bo nasze modele juz siedza
 # w natywnym folderze ComfyUI (/workspace/comfyui/models/), wiec nie
-# potrzebujemy przekierowania sciezek modeli od SwarmUI.
+# potrzebujemy przekierowania sciezek modeli od SwarmUI. To NIE usunelo
+# calego bledu (log --loglevel Debug potwierdzil: "Will add args" sie nie
+# pojawia, wiec DisableInternalArgs faktycznie dziala) - prawdziwa przyczyna:
+# format FDS NIE usuwa cudzyslowow z wartosci (w przeciwienstwie do YAML/JSON,
+# potwierdzone w spec FreneticDataSyntax.md). ExtraArgs: "" i GPU_ID: "0" byly
+# wiec dosl. stringami Z cudzyslowami w srodku, ktore trafialy w komende
+# startowa - para "" w linii polecen w stylu .NET/Windows parsuje sie jako
+# JEDEN PUSTY argument, dokladnie pasujac do "unrecognized arguments: "
+# (pusty). Wartosci pisze sie w FDS BEZ cudzyslowow.
 RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.fds << 'EOF'
 0:
     type: comfyui_selfstart
@@ -130,12 +138,12 @@ RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.f
     enabled: true
     settings:
         StartScript: /workspace/comfyui/main.py
-        ExtraArgs: ""
+        ExtraArgs:
         DisableInternalArgs: true
         AutoUpdate: false
         UpdateManagedNodes: false
         FrontendVersion: None
-        GPU_ID: "0"
+        GPU_ID: 0
         OverQueue: 1
         AutoRestart: true
 EOF
