@@ -138,7 +138,7 @@ RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.f
     enabled: true
     settings:
         StartScript: /workspace/comfyui/main.py
-        ExtraArgs:
+        ExtraArgs: \x
         DisableInternalArgs: true
         AutoUpdate: false
         UpdateManagedNodes: false
