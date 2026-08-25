@@ -57,4 +57,8 @@ echo "SwarmUI uruchomi rowniez ComfyUI jako wlasny backend (Data/Backends.fds)."
 echo "Od tego momentu czas nie jest juz logowany przez ten skrypt - SwarmUI"
 echo "przejmuje pierwszy plan i loguje wlasny postep startu ponizej."
 cd /workspace/swarmui
-exec ./launch-linux.sh --launch_mode none --host 0.0.0.0
+# --loglevel Debug (tymczasowo, sierpien 2026): diagnostyka bledu
+# "unrecognized arguments" przy starcie ComfyUI - pokazuje w logu
+# dokladna, prawdziwa komende uruchomieniowa zamiast zgadywania z
+# kodu zrodlowego SwarmUI. Usunac po znalezieniu przyczyny.
+exec ./launch-linux.sh --launch_mode none --host 0.0.0.0 --loglevel Debug
