@@ -62,11 +62,16 @@ WORKDIR /workspace
 RUN git clone --depth 1 --branch v0.33.3 https://github.com/comfy-org/ComfyUI.git /workspace/comfyui \
     && pip install --break-system-packages -r /workspace/comfyui/requirements.txt
 
-# ComfyUI-Manager 4.2.2 — jako custom node, siatka bezpieczenstwa dla wtyczek
-# (koncepcja-i-zasady-budowy.md, pkt 4.7)
-RUN git clone --depth 1 --branch 4.2.2 https://github.com/Comfy-Org/ComfyUI-Manager.git \
-        /workspace/comfyui/custom_nodes/ComfyUI-Manager \
-    && pip install --break-system-packages -r /workspace/comfyui/custom_nodes/ComfyUI-Manager/requirements.txt
+# ComfyUI-Manager 4.2.2 (sierpien 2026, naprawa "FileNotFoundError __init__.py"):
+# od tej wersji ComfyUI-Manager NIE jest juz zwyklym custom_node z plikiem
+# __init__.py w katalogu glownym (potwierdzone bezposrednio w repo pod tagiem
+# 4.2.2 - prawdziwy pakiet siedzi w podfolderze comfyui_manager/). Oficjalna
+# instrukcja (README.md, sekcja Installation) wprost mowi "Do not clone into
+# ComfyUI/custom_nodes" - instaluje sie jako zwykly pakiet pip, ktory ComfyUI
+# v0.33.3 wykrywa WBUDOWANYM mechanizmem (main.py: importlib.util.find_spec
+# ("comfyui_manager"), aktywowanym flaga --enable-manager - patrz start.sh).
+RUN git clone --depth 1 --branch 4.2.2 https://github.com/Comfy-Org/ComfyUI-Manager.git /opt/comfyui-manager-src \
+    && pip install --break-system-packages /opt/comfyui-manager-src
 
 RUN { \
         echo "comfyui: v0.33.3"; \
@@ -138,7 +143,7 @@ RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.f
     enabled: true
     settings:
         StartScript: /workspace/comfyui/main.py
-        ExtraArgs: \x
+        ExtraArgs: --enable-manager
         DisableInternalArgs: true
         AutoUpdate: false
         UpdateManagedNodes: false
@@ -208,11 +213,16 @@ RUN git clone https://github.com/mav-rik/facerestore_cf.git \
     && pip install --break-system-packages -r requirements.txt
 
 # GFPGAN (rekonstrukcja twarzy) - commit z dnia weryfikacji
+# UWAGA (sierpien 2026, naprawa "ModuleNotFoundError: gfpgan"): requirements.txt
+# tego forka NIE wymienia pakietu 'gfpgan' mimo ze kod go importuje (gfpganer.py)
+# - potwierdzone bezposrednio w pliku requirements.txt pod przypietym commitem.
+# Doinstalowujemy go recznie.
 RUN git clone https://github.com/comfyorg/comfyui_gfpgan.git \
         /workspace/comfyui/custom_nodes/comfyui_gfpgan \
     && cd /workspace/comfyui/custom_nodes/comfyui_gfpgan \
     && git checkout 77577e49ae49e59e44098549d8d04ab2cba87fda \
-    && pip install --break-system-packages -r requirements.txt
+    && pip install --break-system-packages -r requirements.txt \
+    && pip install --break-system-packages gfpgan
 
 RUN { \
         echo "controlnet_aux: e8b689a"; \
