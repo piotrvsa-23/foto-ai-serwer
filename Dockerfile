@@ -120,22 +120,19 @@ RUN git clone --depth 1 --branch 0.9.8-Beta https://github.com/mcmonkeyprojects/
 # przy starcie pip-installuje comfyui-frontend-package w STALEJ (nie "latest",
 # ale mimo to obcej) wersji 1.37.11, NADPISUJAC nasz pinowany w etapie 2
 # pakiet 1.49.6 - "None" uzywa dokladnie tego, co juz zaszylismy w obrazie.
-# DisableInternalArgs=true (sierpien 2026, naprawa realnego bledu na RunPod):
-# pierwsze uruchomienie konczylo sie "main.py: error: unrecognized arguments:"
-# (pusty argument) przy starcie ComfyUI przez SwarmUI - blad w mechanizmie
-# doklejania wewnetrznych argumentow (--extra-model-paths-config,
-# --preview-method itd, patrz ComfyUISelfStartBackend.cs Init()). Wylaczamy
-# ten mechanizm calkowicie - i tak jest zbedny, bo nasze modele juz siedza
-# w natywnym folderze ComfyUI (/workspace/comfyui/models/), wiec nie
-# potrzebujemy przekierowania sciezek modeli od SwarmUI. To NIE usunelo
-# calego bledu (log --loglevel Debug potwierdzil: "Will add args" sie nie
-# pojawia, wiec DisableInternalArgs faktycznie dziala) - prawdziwa przyczyna:
-# format FDS NIE usuwa cudzyslowow z wartosci (w przeciwienstwie do YAML/JSON,
-# potwierdzone w spec FreneticDataSyntax.md). ExtraArgs: "" i GPU_ID: "0" byly
-# wiec dosl. stringami Z cudzyslowami w srodku, ktore trafialy w komende
-# startowa - para "" w linii polecen w stylu .NET/Windows parsuje sie jako
-# JEDEN PUSTY argument, dokladnie pasujac do "unrecognized arguments: "
-# (pusty). Wartosci pisze sie w FDS BEZ cudzyslowow.
+# Historia bledu "unrecognized arguments:" (pusty argument), sierpien 2026:
+# prawdziwa przyczyna byla WYLACZNIE format FDS nie usuwajacy cudzyslowow
+# z wartosci (potwierdzone w spec FreneticDataSyntax.md) - ExtraArgs: ""
+# i GPU_ID: "0" byly dosl. stringami Z cudzyslowami w srodku, ktore w
+# komendzie startowej parsowaly sie (styl .NET/Windows) jako JEDEN PUSTY
+# argument. Naprawione ponizej samym usunieciem cudzyslowow.
+# DisableInternalArgs zostaje NA FALSE (domyslnie) - probne ustawienie go
+# na true (jako pierwsza, blednie zdiagnozowana poprawka tego samego bledu)
+# skasowalo --extra-model-paths-config, ktory rejestruje w ComfyUI folder
+# ExtraNodes/SwarmComfyCommon (wlasne, WYMAGANE wezly SwarmUI jak
+# SwarmKSampler - patrz ComfyUISelfStartBackend.cs linia ~301, buildSection
+# custom_nodes) - jego brak dawal ostrzezenie "missing the Swarm core
+# nodes! Core functionalities will be missing" w logach.
 RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.fds << 'EOF'
 0:
     type: comfyui_selfstart
@@ -144,7 +141,7 @@ RUN mkdir -p /workspace/swarmui/Data && cat > /workspace/swarmui/Data/Backends.f
     settings:
         StartScript: /workspace/comfyui/main.py
         ExtraArgs: --enable-manager
-        DisableInternalArgs: true
+        DisableInternalArgs: false
         AutoUpdate: false
         UpdateManagedNodes: false
         FrontendVersion: None
@@ -223,6 +220,17 @@ RUN git clone https://github.com/comfyorg/comfyui_gfpgan.git \
     && git checkout 77577e49ae49e59e44098549d8d04ab2cba87fda \
     && pip install --break-system-packages -r requirements.txt \
     && pip install --break-system-packages gfpgan
+
+# UWAGA (sierpien 2026, naprawa "ModuleNotFoundError: torchvision.transforms.
+# functional_tensor"): basicsr-fixed (zaleznosc comfyui_gfpgan) importuje
+# rgb_to_grayscale ze starej, usunietej w nowszych torchvision sciezki
+# (torchvision.transforms.functional_tensor) - potwierdzony, szeroko znany
+# problem kompatybilnosci basicsr/torchvision. Funkcja przeniosla sie do
+# torchvision.transforms.functional - podmieniamy import bezposrednio w
+# zainstalowanym pliku pakietu (standardowa spolecznosciowa poprawka).
+RUN sed -i \
+        's/from torchvision.transforms.functional_tensor import rgb_to_grayscale/from torchvision.transforms.functional import rgb_to_grayscale/' \
+        /usr/local/lib/python3.11/dist-packages/basicsr/data/degradations.py
 
 RUN { \
         echo "controlnet_aux: e8b689a"; \
