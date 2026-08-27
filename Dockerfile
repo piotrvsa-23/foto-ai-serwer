@@ -14,10 +14,23 @@
 # dev-schnell przez swoj Model Manager) i WLASNA, wbudowana restauracja
 # twarzy (GFPGAN/CodeFormer) oraz upscaling (ESRGAN) - dociagane recznie
 # przez UI, bez osobnego skryptu (patrz koniec pliku).
+#
+# v6.14.0 (sierpien 2026) — bump InvokeAI 6.9.0 -> 6.14.0 (na prosbe
+# uzytkownika, ktory szukal "najnowszej stabilnej" - okazala sie nia 6.14.0,
+# nie 6.13.8 ktore znalazl on recznie: 6.14.0 to finalny, nie-rc release
+# z 25.08.2026, zweryfikowany bezposrednio na PyPI - pypi.org/pypi/invokeai/
+# json, pole "info.version", nie z pamieci). Tag obrazu na Docker Hub tez
+# nazwany "v6.14.0" (nie kolejnym numerkiem "v16") - zeby uzytkownik od razu
+# widzial, ktora wersja InvokeAI siedzi w ktorym obrazie. Reszta obrazu
+# (baza CUDA, brak ComfyUI/SwarmUI, izolowany venv) - bez zmian wzgledem v15.
+# Sprawdzone bezposrednio w metadanych PyPI: torch dla 6.14.0 to nadal
+# torch<3.0,>=2.7.0 (extra "cuda" pinuje wprost torch==2.7.1+cu128 na
+# linux/x86_64) - baza CUDA 12.8.2-runtime i --torch-backend=cu128 ponizej
+# zostaja bez zmian, nie byla potrzebna zadna korekta.
 # ==============================================================================
 
 # nvidia/cuda:12.8.2-runtime-ubuntu22.04 — dopasowany DOKLADNIE do wymagan
-# invokeai==6.9.0 (torch>=2.7.0,<2.8.dev0, wheel-e cu128 - patrz uzasadnienie
+# invokeai==6.14.0 (torch<3.0,>=2.7.0, wheel-e cu128 - patrz uzasadnienie
 # przy instalacji InvokeAI nizej). Tag zweryfikowany bezposrednio w Docker
 # Hub API (nvidia/cuda, "12.8.2-runtime-ubuntu22.04", sierpien 2026), nie
 # z pamieci.
@@ -75,16 +88,17 @@ WORKDIR /workspace
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
-# InvokeAI v6.9.0 — najnowszy stabilny tag (po v6.9.0rc1-3) zweryfikowany
-# w repo. UWAGA: invokeai==6.9.0 wymaga sztywno torch>=2.7.0,<2.8.dev0 - stad
-# --torch-backend=cu128 (cu128 w pelni wspiera RTX 4090 i ma wheel-e torch
-# 2.7.x wymagane przez ta wersje InvokeAI; wyzsze indeksy jak cu130 nie maja
-# w ogole wheeli torch w tym zakresie wersji - sprawdzone bezposrednio przez
-# uv przy pierwszej probie w trakcie budowy v1-v14).
+# InvokeAI v6.14.0 — najnowsza stabilna wersja (finalny release, nie rc),
+# zweryfikowana bezposrednio na PyPI (sierpien 2026), nie z pamieci. UWAGA:
+# invokeai==6.14.0 wymaga torch<3.0,>=2.7.0 - stad --torch-backend=cu128
+# (cu128 w pelni wspiera RTX 4090 i ma wheel-e torch 2.7.x wymagane przez
+# ta wersje InvokeAI - jej wlasny extra "cuda" pinuje wprost torch 2.7.1+
+# cu128 na linux/x86_64, wiec to dokladnie ten sam wybor, ktory robi tu
+# --torch-backend=cu128).
 RUN uv venv --relocatable --prompt invoke --python 3.12 --python-preference only-managed \
         /workspace/invokeai/.venv \
     && uv pip install --python /workspace/invokeai/.venv/bin/python \
-        invokeai==6.9.0 --torch-backend=cu128 \
+        invokeai==6.14.0 --torch-backend=cu128 \
     && rm -rf /root/.cache/uv
 
 # Weryfikacja wersji zaraz po instalacji — zapisywana do pliku, sprawdzana
