@@ -8,9 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag obrazu (oprocz 'latest', ktory zawsze jest dodawany)"
+        description: "Tag obrazu"
         required: true
         default: "v1"
+      update_latest:
+        description: "Nadpisac tez tag 'latest' tym obrazem?"
+        type: boolean
+        required: true
+        default: true
 
 jobs:
   build-and-push:
@@ -39,13 +44,32 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # update_latest=false (sierpien 2026, dodane przy rownoleglym testowaniu
+      # dwoch wersji InvokeAI): "latest" ma zawsze wskazywac na NAJNOWSZA
+      # przetestowana wersje, nie na "ostatnia rzecz ktora ktos wypchnal".
+      # Bez tego przelacznika kazdy push (np. starszej wersji do testow
+      # porownawczych) bezwarunkowo nadpisywalby "latest" - co jest dobre
+      # przy normalnym, liniowym wydawaniu kolejnych wersji, ale niebezpieczne
+      # przy celowym wypychaniu dwoch wersji obok siebie do porownania.
+      - name: Ustal liste tagow do wypchniecia
+        id: tags
+        run: |
+          TAGS="${{ secrets.DOCKERHUB_USERNAME }}/foto-ai-serwer:${{ github.event.inputs.tag }}"
+          if [ "${{ github.event.inputs.update_latest }}" = "true" ]; then
+            TAGS="${TAGS}
+          ${{ secrets.DOCKERHUB_USERNAME }}/foto-ai-serwer:latest"
+          fi
+          {
+            echo "list<<TAGS_EOF"
+            echo "$TAGS"
+            echo "TAGS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Zbuduj i wypchnij obraz
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/foto-ai-serwer:${{ github.event.inputs.tag }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/foto-ai-serwer:latest
+          tags: ${{ steps.tags.outputs.list }}
           cache-from: type=gha
           cache-to: type=gha
