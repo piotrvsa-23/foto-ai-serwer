@@ -20,6 +20,11 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # timeout-minutes + brak cache-from/cache-to: type=gha - patrz
+    # docker-build-test.yml (identyczna diagnostyka, sierpien 2026):
+    # 3 buildy z rzedu wisialy ~25-30 min z "duration_ms: 0" i bez logow,
+    # naprawilo to dopiero wylaczenie cache GHA + timeout.
+    timeout-minutes: 25
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -73,7 +78,5 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.tags.outputs.list }}
-          cache-from: type=gha
-          cache-to: type=gha
           secrets: |
             CIVITAI_API_KEY=${{ secrets.CIVITAI_API_KEY }}
