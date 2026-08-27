@@ -1,7 +1,12 @@
 # KONCEPCJA I ZASADY BUDOWY — serwer AI do obróbki zdjęć
 
-Wersja: 1.1 — uzupełniona o lekcje z odnalezionych dokumentów wcześniejszego projektu (Ollama+Open WebUI+Qwen na RunPod)
+Wersja: 1.2 — zaktualizowana o decyzję z v15: rezygnacja z ComfyUI+SwarmUI na rzecz wyłącznie InvokeAI (patrz punkt 2.3a)
 Cel dokumentu: dać Claude Code kontekst "dlaczego tak", zasady postępowania i listę błędów z poprzedniego podejścia (instalacja przez Gemini), których trzeba świadomie unikać. Specyfikacja techniczna (co dokładnie zainstalować, ile GB, jakie modele) znajduje się w osobnym pliku `brief-techniczny-serwer-obrobki-zdjec.md`.
+
+**UWAGA (v15):** punkty 2 i 3 poniżej opisują PIERWOTNĄ koncepcję (dwa silniki:
+ComfyUI+SwarmUI oraz InvokeAI) i zostają jako historyczny kontekst decyzji.
+Od v15 obraz zawiera WYŁĄCZNIE InvokeAI — patrz punkt 2.3a z aktualnym stanem
+i uzasadnieniem.
 
 ---
 
@@ -32,12 +37,32 @@ To jest najważniejsza zasada tego projektu. Poprzednie podejście (z Gemini) po
 4. **Brak jednego, przetestowanego stanu wyjściowego.** Każda sesja zaczynała się od potencjalnie innego stanu środowiska, więc błędy nie były powtarzalne ani łatwe do zdiagnozowania.
 5. **Mieszanie zależności różnych narzędzi w jednym środowisku.** Różne UI/silniki instalowane obok siebie bez izolacji, przez co aktualizacja jednego potrafiła wywrócić drugi.
 
+## 2.3a. DECYZJA v15 — wyłącznie InvokeAI (aktualny stan)
+
+Po zbudowaniu i przetestowaniu wariantu z dwoma silnikami (punkty 2-3 wyżej)
+użytkownik zdecydował się pracować wyłącznie w InvokeAI. ComfyUI, SwarmUI i
+wszystkie wtyczki ComfyUI zostały usunięte z obrazu w v15. Konsekwencje tej
+decyzji, świadomie zaakceptowane:
+
+- Modele/węzły specyficzne dla ComfyUI (Qwen-Image-Edit, Flux.1 Kontext Dev,
+  SUPIR) NIE są dostępne — InvokeAI ich nie obsługuje. Zamiast nich: własny
+  ekosystem modeli InvokeAI (SD1.5/SDXL/FLUX.1 dev-schnell) plus jego
+  wbudowana restauracja twarzy (GFPGAN/CodeFormer) i upscaling (ESRGAN).
+- Obraz jest znacznie mniejszy i prostszy (brak CUDA "devel"/nvcc, brak
+  .NET/SwarmUI, brak osobnych wtyczek do pinowania) — mniej ruchomych części
+  do utrzymania.
+- Punkt 4.3 poniżej (izolowany venv InvokeAI) **zostaje w mocy**, ale z innym
+  uzasadnieniem niż pierwotnie — patrz komentarz w `Dockerfile` przy instalacji
+  InvokeAI: to już nie izolacja od ComfyUI/SwarmUI (ich nie ma), tylko
+  podążanie za oficjalnym sposobem instalacji InvokeAI (uv) i unikanie
+  ograniczeń "externally managed" systemowego Pythona Ubuntu 22.04.
+
 ## 4. Zasady, które temu zapobiegają w tym projekcie
 
 1. **Budujemy obraz Docker raz, testujemy, zamrażamy.** Po zbudowaniu i przetestowaniu obrazu, jego zawartość (wersje CUDA/Python/bibliotek) nie zmienia się samoczynnie przy kolejnych uruchomieniach.
-2. **Pinujemy dokładne numery wersji** (CUDA 12.8, Python 3.11, konkretne tagi/commity ComfyUI, SwarmUI, InvokeAI) zamiast pobierania "latest" przy każdym buildzie.
-3. **InvokeAI w osobnym środowisku wirtualnym (venv)**, odizolowanym od ComfyUI/SwarmUI — aktualizacja lub błąd jednego narzędzia nie wpływa na drugie.
-4. **Modele AI (ciężkie pliki wag) trzymane poza obrazem Docker**, ściągane skryptem startowym z zaufanych źródeł (HuggingFace) — obraz zostaje lekki i stabilny, a modele można aktualizować niezależnie od silnika.
+2. **Pinujemy dokładne numery wersji** (CUDA, Python, konkretny tag InvokeAI) zamiast pobierania "latest" przy każdym buildzie.
+3. **InvokeAI w osobnym środowisku wirtualnym (venv)** — pierwotnie odizolowanym od ComfyUI/SwarmUI, od v15 (patrz punkt 2.3a) uzasadnionym inaczej: to oficjalny sposób instalacji InvokeAI i higiena wobec systemowego Pythona.
+4. **Modele AI (ciężkie pliki wag) trzymane poza obrazem Docker**, dociągane ręcznie przez użytkownika (w InvokeAI: wbudowany Model Manager) z zaufanych źródeł (HuggingFace/CivitAI) — obraz zostaje lekki i stabilny, a modele można aktualizować niezależnie od silnika.
 5. **Każda zmiana w obrazie testowana lokalnie przed wypchnięciem na Docker Hub** — nie modyfikujemy "na produkcji" (czyli na działającym podzie, z którego użytkownik akurat korzysta).
 6. **Jedno źródło prawdy.** Obraz na Docker Hub jest jedynym miejscem, z którego pod startuje — nie ma równoległych, ręcznie modyfikowanych wersji środowiska.
 7. **ComfyUI Manager jako siatka bezpieczeństwa dla wtyczek** — pozwala na szybkie zdiagnozowanie i naprawę pojedynczej wtyczki bez przebudowy całego obrazu.
@@ -48,8 +73,8 @@ To jest najważniejsza zasada tego projektu. Poprzednie podejście (z Gemini) po
 
 Środowisko uznajemy za gotowe, gdy:
 - pod startuje z obrazu Docker bez ręcznej interwencji,
-- wszystkie wtyczki i modele ładują się bez błędów "IMPORT FAILED",
-- obie nakładki UI (SwarmUI, InvokeAI) działają jednocześnie bez konfliktów,
+- InvokeAI startuje bez błędów i widzi GPU (RTX 4090),
+- modele dociągnięte przez Model Manager InvokeAI ładują się poprawnie,
 - kolejne uruchomienie tego samego obrazu daje identyczny, przewidywalny efekt.
 
 ---

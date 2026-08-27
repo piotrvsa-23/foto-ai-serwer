@@ -5,6 +5,9 @@ tym, co jest **specyficzne dla naszego obrazu**: jaki obraz wpisać, jakie
 ustawienia, gdzie czytać logi, jak sprawdzić że wszystko działa, i jak
 bezpiecznie zakończyć sesję.
 
+**Od v15 obraz zawiera WYŁĄCZNIE InvokeAI** (SwarmUI/ComfyUI zostały
+usunięte — patrz komentarz na górze `Dockerfile`).
+
 ---
 
 ## 1. Tworzenie poda — konkretne ustawienia
@@ -32,28 +35,28 @@ bezpiecznie zakończyć sesję.
    wszystko jest efemeryczne poza samym obrazem.
 
 5. **Expose HTTP Ports** (czasem nazwane "Expose Ports" albo trzeba dodać
-   ręcznie w sekcji portów) — dodaj oba:
+   ręcznie w sekcji portów) — dodaj:
 
    ```
-   7801
    9090
    ```
 
-   (7801 = SwarmUI, 9090 = InvokeAI)
+   (9090 = InvokeAI — jedyny port od v15)
 
 6. Kliknij **Deploy**.
 
 ---
 
-## 2. Ile to będzie trwało (dwie fazy, obie normalne, nie panikuj)
+## 2. Ile to będzie trwało
 
-- **Faza 1 — RunPod pobiera obraz Docker.** Status poda pokaże coś w stylu
-  "Pulling image". Może potrwać od kilku do kilkunastu minut (obraz jest
-  duży — CUDA + PyTorch + trzy silniki AI w jednym).
-- **Faza 2 — skrypt startowy ściąga modele AI z HuggingFace.** To widać w
-  logach (patrz punkt 3 niżej), szacunkowo **15-20 minut** (~44GB modeli).
+- **RunPod pobiera obraz Docker.** Status poda pokaże coś w stylu "Pulling
+  image". Obraz od v15 jest znacznie mniejszy niż wcześniej (bez CUDA
+  "devel", ComfyUI, SwarmUI i ich wtyczek) — powinno to być kilka minut.
+- **Skrypt startowy** tworzy foldery i od razu uruchamia InvokeAI — to
+  sekundy, nie minuty (modele NIE są pobierane automatycznie, patrz punkt 4).
 
-Dopiero po obu fazach serwer jest gotowy do pracy.
+Serwer jest gotowy do pracy, gdy w logach zobaczysz komunikat InvokeAI o
+uruchomionym serwerze (patrz punkt 3).
 
 ---
 
@@ -63,67 +66,62 @@ W panelu RunPod, na stronie Twojego poda, jest zakładka **"Logs"** — tam
 lecą logi kontenera na żywo. Szukaj:
 
 - Linii zaczynających się od `>>> [HH:MM:SS] (+Xs od startu skryptu)` —
-  to nasze własne znaczniki: `[1/4]` foldery, `[2/4]` modele (tu zobaczysz
-  każdy pobierany plik z paskiem postępu), `[3/4]` start InvokeAI,
-  `[4/4]` start SwarmUI.
-- Po `[4/4]` logi przechodzą w komunikaty samego SwarmUI — szukaj linii
-  mówiącej, że serwer nasłuchuje (coś w stylu "Server started" / adres z
-  portem 7801). To sygnał, że SwarmUI (i uruchomiony przez niego ComfyUI)
-  są gotowe.
-- Log InvokeAI leci osobno do pliku **`/workspace/cache/invokeai.log`**
-  wewnątrz kontenera — jeśli chcesz go zobaczyć, otwórz "Web Terminal" /
-  "Connect" na stronie poda i wpisz:
-  ```
-  tail -f /workspace/cache/invokeai.log
-  ```
+  to nasze własne znaczniki: `[1/2]` foldery, `[2/2]` start InvokeAI.
+- Po `[2/2]` logi przechodzą w komunikaty samego InvokeAI — szukaj linii
+  mówiącej, że serwer nasłuchuje (adres z portem 9090). To sygnał, że
+  InvokeAI jest gotowe.
 
 **Jeśli coś pójdzie nie tak:** skrypt jest zaprojektowany, żeby przerwać
-się od razu z jasnym komunikatem (np. `BLAD: nie udalo sie pobrac ...`
-z dokładnym adresem, który zawiódł) — nie będzie cichej, mylącej awarii.
-Skopiuj mi ten fragment logu, jeśli coś się wywali.
+się od razu z jasnym komunikatem błędu (`set -euo pipefail`) — nie będzie
+cichej, mylącej awarii. Skopiuj mi ten fragment logu, jeśli coś się wywali.
 
 ---
 
-## 4. Jak sprawdzić, że działa
+## 4. Jak sprawdzić, że działa i skąd wziąć modele
 
-Na stronie poda w RunPod, przy uruchomionym podzie, powinny być klikalne
-linki (albo złóż je ręcznie z ID poda):
+Na stronie poda w RunPod, przy uruchomionym podzie, powinien być klikalny
+link (albo złóż go ręcznie z ID poda):
 
-- SwarmUI: `https://<ID-poda>-7801.proxy.runpod.net`
-- InvokeAI: `https://<ID-poda>-9090.proxy.runpod.net`
+```
+https://<ID-poda>-9090.proxy.runpod.net
+```
 
-Otwórz oba w zwykłej przeglądarce (Chrome/Firefox na Twoim komputerze) —
-powinny pokazać interfejs, nie błąd.
+Otwórz w zwykłej przeglądarce (Chrome/Firefox na Twoim komputerze) —
+powinien pokazać interfejs InvokeAI, nie błąd.
 
-**WAŻNE — to NIE jest "jedno UI = jeden model".** Oba interfejsy dają
-dostęp do WSZYSTKICH pobranych modeli (Qwen, Flux) jednocześnie — model
-wybierasz z listy rozwijanej wewnątrz danego UI, przy każdej generacji.
-Różnica między SwarmUI a InvokeAI to sposób pracy, nie model:
+**Obraz nie zawiera żadnych modeli** (checkpointy to dziesiątki GB — trzymamy
+je poza obrazem, koncepcja-i-zasady-budowy.md pkt 4.4). Za pierwszym
+uruchomieniem InvokeAI poprowadzi Cię przez ekran startowy z **wbudowanym
+Model Managerem** — stamtąd jednym kliknięciem pobierasz gotowe modele
+(np. SD1.5, SDXL, FLUX.1 dev/schnell) prosto z HuggingFace/CivitAI, bez
+terminala i bez osobnego skryptu.
 
-- **SwarmUI (port 7801)** — główne, codzienne narzędzie: opis słowny +
-  suwaki, całe zdjęcie naraz. Od tego zwykle zaczynasz.
-- **InvokeAI (port 9090)** — do precyzyjnej poprawki JEDNEGO wybranego
-  fragmentu zdjęcia (np. tylko rękaw, tylko fragment twarzy) — ma Unified
-  Canvas do tego. Otwierasz go tylko gdy potrzebujesz punktowej poprawki.
+**WAŻNE — inny zestaw modeli niż w wersjach v1-v14.** InvokeAI NIE obsługuje
+Qwen-Image-Edit, Flux.1 Kontext Dev ani SUPIR (to były modele/węzły
+specyficzne dla ComfyUI, usuniętego w v15). Do restauracji/wyostrzania i
+edycji zdjęć używasz teraz modeli z ekosystemu InvokeAI (np. FLUX.1, SDXL)
+oraz jego wbudowanych narzędzi: **Unified Canvas** (precyzyjna edycja
+wybranego fragmentu) i wbudowanej **restauracji twarzy**
+(GFPGAN/CodeFormer) oraz **upscalingu** (ESRGAN) — dostępnych bezpośrednio
+z poziomu UI, bez dodatkowej instalacji.
 
-**Checklista z briefu (sekcja 9) — warto przejść po pierwszym uruchomieniu:**
-- [ ] SwarmUI i InvokeAI oba się otwierają
-- [ ] W SwarmUI: `Server` → `Backends` pokazuje aktywny backend ComfyUI
-- [ ] Żadna wtyczka ComfyUI nie pokazuje błędu "IMPORT FAILED"
-      (widoczne w logu przy starcie ComfyUI, w tym samym oknie Logs)
+**Checklista z briefu (sekcja 9, zaktualizowana pod InvokeAI-only) — warto
+przejść po pierwszym uruchomieniu:**
+- [ ] InvokeAI się otwiera pod portem 9090
 - [ ] `nvidia-smi` w Web Terminal potwierdza widoczność RTX 4090
+- [ ] W ustawieniach InvokeAI (albo w logu startowym) widać, że urządzenie
+      obliczeniowe to CUDA, nie CPU
 
 ---
 
 ## 5. Praca ze zdjęciami — upload i download
 
-**Na co dzień NIE potrzebujesz terminala ani SSH.** Oba UI (SwarmUI i
-InvokeAI) mają to wbudowane bezpośrednio w interfejs, w zwykłej
-przeglądarce:
+**Na co dzień NIE potrzebujesz terminala ani SSH.** InvokeAI ma to wbudowane
+bezpośrednio w interfejs, w zwykłej przeglądarce:
 
 - **Upload (wgrywanie zdjęcia wejściowego):** przeciągnij i upuść plik w
-  odpowiednie pole w UI (np. pole obrazu wejściowego przy edycji), albo
-  kliknij je i wybierz plik z dysku — tak jak w każdej stronie internetowej.
+  odpowiednie pole w UI (np. Unified Canvas), albo kliknij je i wybierz
+  plik z dysku — tak jak w każdej stronie internetowej.
 - **Download (pobieranie wyniku):** w galerii wyników w UI kliknij obraz i
   pobierz go (przycisk pobierania albo zwykłe "zapisz obraz jako" prawym
   przyciskiem myszy).
@@ -132,10 +130,9 @@ To wystarczy do całej codziennej pracy.
 
 **Terminal (Web Terminal / przycisk "Connect" na stronie poda w RunPod —
 otwiera się w przeglądarce, NIE trzeba żadnego programu SSH) jest
-potrzebny tylko do rzeczy zaawansowanych:** podejrzenia logu InvokeAI
-(punkt 3), sprawdzenia `nvidia-smi`, albo masowego przenoszenia wielu
-plików naraz. Foldery `/workspace/input/` i `/workspace/output/` istnieją
-"pod spodem" i to tam UI zapisuje/czyta pliki — ale zwykle nie musisz tam
+potrzebny tylko do rzeczy zaawansowanych:** sprawdzenia `nvidia-smi`, albo
+masowego przenoszenia wielu plików naraz. Foldery `/workspace/input/` i
+`/workspace/output/` istnieją "pod spodem", ale zwykle nie musisz tam
 zaglądać ręcznie.
 
 ---
@@ -150,6 +147,9 @@ Zanim klikniesz jedno albo drugie:
 2. Dopiero potem **Stop** lub **Terminate** poda.
 
 Nie ma żadnego "zapisz i wróć później" — to co nie zostało pobrane, ginie.
+To samo dotyczy modeli pobranych przez Model Manager InvokeAI — one też
+znikają razem z Container Diskiem i trzeba je ściągnąć ponownie w kolejnej
+sesji.
 
 ---
 

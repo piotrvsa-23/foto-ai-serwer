@@ -1,7 +1,15 @@
 # BRIEF TECHNICZNY — Serwer AI do obróbki zdjęć (RunPod + Docker)
 
-Wersja: 1.1 — dodano sekcję 9 (weryfikacja po wdrożeniu)
-Cel dokumentu: precyzyjna specyfikacja dla Claude Code do zbudowania obrazu Docker i konfiguracji poda na RunPod. To jest dokument "co i jak", nie "dlaczego" — kontekst koncepcyjny znajduje się w osobnym pliku `koncepcja-i-zasady-budowy.md`.
+Wersja: 1.2 — zaktualizowana pod v15 (wyłącznie InvokeAI, patrz UWAGA niżej)
+Cel dokumentu: precyzyjna specyfikacja dla Claude Code do zbudowania obrazu Docker i konfiguracji poda na RunPod. To jest dokument "co i jak", nie "dlaczego" — kontekst koncepcyjny znajduje się w osobnym pliku `koncepcja-i-zasady-budowy.md` (patrz tam punkt 2.3a).
+
+**UWAGA (v15):** ta wersja brief-u opisywała pierwotny plan z dwoma silnikami
+(ComfyUI+SwarmUI oraz InvokeAI) i konkretnymi modelami ComfyUI (Qwen-Image-Edit,
+Flux.1 Kontext Dev, SUPIR). Od v15 obraz zawiera WYŁĄCZNIE InvokeAI — ComfyUI,
+SwarmUI i modele z sekcji 3 poniżej NIE są już częścią tego projektu (InvokeAI
+ich nie obsługuje). Sekcje 1-4, 6 i 9 poniżej zostają jako historyczny zapis
+pierwotnej specyfikacji; aktualny, obowiązujący stan opisuje `Dockerfile` i
+`docs/JAK-URUCHOMIC-NA-RUNPOD.md`.
 
 ---
 
