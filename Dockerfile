@@ -112,11 +112,60 @@ print('torch cuda (build):', torch.version.cuda)" \
     | tee /opt/build-versions.txt
 
 # ==============================================================================
+# v6.14.0_v01_CyberRXL_v10 (sierpien 2026) — na wyrazna prosbe uzytkownika,
+# po realnych testach na RunPod: zaszywamy JEDEN, juz wybrany i przetestowany
+# checkpoint (CyberRealisticXL V10.0 FP16) BEZPOSREDNIO W OBRAZIE, budowany
+# raz w CI (szybkie, stabilne lacze), zamiast liczyc na pobieranie go co
+# sesje przez UI InvokeAI w przegladarce - to ostatnie bylo w praktyce
+# zawodne dla tego pliku (wielokrotne zawieszki bez ani jednego pobranego
+# bajtu, potwierdzone w logu InvokeAI - plik jest skladowany przez
+# HuggingFace w systemie "Xet"). Zwykle pobieranie przez curl na koncowce
+# resolve/main dziala mimo Xet - HuggingFace serwuje ten sam plik przez
+# zwykle przekierowanie HTTP niezaleznie od backendu skladowania - to
+# dokladnie ten sam mechanizm, ktory juz dzialal w v1-v14 dla modeli ComfyUI.
+#
+# LoRA swiadomie NIE sa tu zaszywane (decyzja z uzytkownikiem) - to male
+# pliki (pojedyncze-kilkaset MB), wiec zaszywanie nie daje realnej oszczednosci
+# czasu, a uzytkownik nadal aktywnie testuje/zmienia zestaw LoRA - kazda
+# zmiana wymagalaby pelnego rebuildu obrazu. Instaluje sie je przez UI,
+# teraz juz plynnie dzieki automatyzacji tokenow ponizej.
+# ==============================================================================
+
+# SHA256 z oficjalnej strony pliku na HuggingFace (Xet Pointer Details) -
+# build PADNIE, jesli pobrany plik nie zgadza sie z tym hashem (ochrona przed
+# cichym zaszyciem uciete/uszkodzonej kopii modelu w obrazie).
+RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
+    && curl -L --fail --retry 3 --retry-delay 5 \
+        -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
+        -o /workspace/invokeai/root/models/sdxl/main/CyberRealisticXLPlay_V10.0_FP16.safetensors \
+        "https://huggingface.co/cyberdelia/CyberRealisticXL/resolve/main/CyberRealisticXLPlay_V10.0_FP16.safetensors" \
+    && echo "fd5e870b5bbce4bddeb64f4bb8e49c57f84ab793c0262a503f0123be435e667d  /workspace/invokeai/root/models/sdxl/main/CyberRealisticXLPlay_V10.0_FP16.safetensors" \
+        | sha256sum -c -
+
+# invokeai.yaml zaszyty w obrazie z jednym kluczowym ustawieniem:
+# scan_models_on_startup: true. Bez tego zaszyty wyzej plik .safetensors
+# lezalby w folderze modeli, ale InvokeAI NIGDY by go sam nie "zobaczyl" w UI
+# (rejestracja modelu w jego wewnetrznej bazie to osobny krok od samego
+# polozenia pliku na dysku). Ta flaga (sprawdzona w zrodle InvokeAI,
+# model_install_default.py, _register_orphaned_models) kaze InvokeAI
+# przeskanowac folder modeli PRZY KAZDYM starcie i samodzielnie zarejestrowac
+# kazdy nieznaleziony jeszcze w bazie plik - dokladnie nasz przypadek, bo baza
+# (databases/invokeai.db) i tak powstaje od zera przy kazdym starcie kontenera
+# (Container Disk jest efemeryczny, patrz koncepcja-i-zasady-budowy.md pkt 8).
+# Komentarz w zrodle ostrzega "normalnie nie powinno byc orphaned models,
+# ten flag tylko do testow" - ale to ostrzezenie zaklada TRWALA baze danych
+# miedzy restartami (typowa, stacjonarna instalacja InvokeAI), co u nas nigdy
+# nie zachodzi - u nas ten "przypadek testowy" jest normalnym przypadkiem.
+RUN mkdir -p /workspace/invokeai/root && cat > /workspace/invokeai/root/invokeai.yaml << 'EOF'
+schema_version: "4.0.3"
+scan_models_on_startup: true
+EOF
+
+# ==============================================================================
 # Skrypt startowy — jedyna rzecz uruchamiana automatycznie przy starcie poda.
-# Modele AI (SD1.5/SDXL/FLUX.1 itd.) NIE sa czescia obrazu ani osobnego
-# skryptu pobierajacego (jak w v1-v14 dla ComfyUI) - InvokeAI ma wlasny,
-# wbudowany w UI Model Manager z gotowa lista modeli do pobrania jednym
-# klikiem, wiec osobny download_models.sh jest tu zbedny.
+# Poza modelem zaszytym wyzej, kolejne modele/LoRA NIE sa czescia obrazu -
+# InvokeAI ma wlasny, wbudowany w UI Model Manager z gotowa lista modeli do
+# pobrania jednym klikiem, wiec osobny download_models.sh jest tu zbedny.
 # ==============================================================================
 COPY scripts/start.sh /workspace/scripts/start.sh
 RUN chmod +x /workspace/scripts/start.sh

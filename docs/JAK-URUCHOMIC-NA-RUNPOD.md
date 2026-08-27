@@ -8,6 +8,11 @@ bezpiecznie zakończyć sesję.
 **Od v15 obraz zawiera WYŁĄCZNIE InvokeAI** (SwarmUI/ComfyUI zostały
 usunięte — patrz komentarz na górze `Dockerfile`).
 
+**Od v6.14.0_v01_CyberRXL_v10 obraz ma dodatkowo wbudowany na stałe jeden
+checkpoint (CyberRealisticXL V10.0 FP16)** — gotowy od razu po starcie, bez
+pobierania w UI — oraz automatyczną konfigurację tokenów HuggingFace/Civitai
+z Environment Variables RunPod (patrz punkt 1a niżej).
+
 ---
 
 ## 1. Tworzenie poda — konkretne ustawienia
@@ -47,13 +52,39 @@ usunięte — patrz komentarz na górze `Dockerfile`).
 
 ---
 
+## 1a. Tokeny HuggingFace / Civitai (opcjonalne, ale zalecane)
+
+W kreatorze poda znajdź sekcję **"Environment Variables"**. Dodaj tam
+(klikając ikonę 🔑 przy polu "value", żeby zapisać jako zaszyfrowany
+"Secret" — RunPod sam ostrzega, że zwykłe zmienne środowiskowe NIE są
+szyfrowane):
+
+| Key | Value |
+|---|---|
+| `HUGGINGFACE_TOKEN` | Twój token z huggingface.co/settings/tokens |
+| `CIVITAI_API_KEY` | Twój klucz z civitai.com → Account settings → API Keys |
+
+Skrypt startowy sam wykryje te zmienne i skonfiguruje oba tokeny przy
+każdym starcie poda — nie musisz nic wklejać ręcznie w terminalu. Bez nich
+obraz też zadziała, ale pobieranie modeli/LoRA (zwłaszcza z Civitai) może
+się nie udać albo być zawodne.
+
+**Nigdy nie wpisuj prawdziwych tokenów w rozmowie z Claude ani w plikach
+repozytorium** — to pole w RunPod jest jedynym właściwym miejscem na nie.
+
+---
+
 ## 2. Ile to będzie trwało
 
 - **RunPod pobiera obraz Docker.** Status poda pokaże coś w stylu "Pulling
-  image". Obraz od v15 jest znacznie mniejszy niż wcześniej (bez CUDA
-  "devel", ComfyUI, SwarmUI i ich wtyczek) — powinno to być kilka minut.
-- **Skrypt startowy** tworzy foldery i od razu uruchamia InvokeAI — to
-  sekundy, nie minuty (modele NIE są pobierane automatycznie, patrz punkt 4).
+  image". Od `v6.14.0_v01_CyberRXL_v10` obraz jest większy niż w v15 (ma
+  wbudowany checkpoint CyberRealisticXL, ~7GB) — pull może potrwać kilka-
+  kilkanaście minut zamiast kilku, ale to jednorazowy koszt przy pobieraniu
+  obrazu, nie przy każdym starcie poda.
+- **Skrypt startowy** tworzy foldery, konfiguruje tokeny (jeśli ustawione)
+  i od razu uruchamia InvokeAI — to sekundy. Model CyberRealisticXL jest
+  już na miejscu (wbudowany w obraz) i pojawia się w UI automatycznie, bez
+  pobierania i bez klikania.
 
 Serwer jest gotowy do pracy, gdy w logach zobaczysz komunikat InvokeAI o
 uruchomionym serwerze (patrz punkt 3).
@@ -66,8 +97,9 @@ W panelu RunPod, na stronie Twojego poda, jest zakładka **"Logs"** — tam
 lecą logi kontenera na żywo. Szukaj:
 
 - Linii zaczynających się od `>>> [HH:MM:SS] (+Xs od startu skryptu)` —
-  to nasze własne znaczniki: `[1/2]` foldery, `[2/2]` start InvokeAI.
-- Po `[2/2]` logi przechodzą w komunikaty samego InvokeAI — szukaj linii
+  to nasze własne znaczniki: `[1/3]` foldery, `[2/3]` konfiguracja tokenów
+  (jeśli ustawione), `[3/3]` start InvokeAI.
+- Po `[3/3]` logi przechodzą w komunikaty samego InvokeAI — szukaj linii
   mówiącej, że serwer nasłuchuje (adres z portem 9090). To sygnał, że
   InvokeAI jest gotowe.
 
@@ -89,12 +121,12 @@ https://<ID-poda>-9090.proxy.runpod.net
 Otwórz w zwykłej przeglądarce (Chrome/Firefox na Twoim komputerze) —
 powinien pokazać interfejs InvokeAI, nie błąd.
 
-**Obraz nie zawiera żadnych modeli** (checkpointy to dziesiątki GB — trzymamy
-je poza obrazem, koncepcja-i-zasady-budowy.md pkt 4.4). Za pierwszym
-uruchomieniem InvokeAI poprowadzi Cię przez ekran startowy z **wbudowanym
-Model Managerem** — stamtąd jednym kliknięciem pobierasz gotowe modele
-(np. SD1.5, SDXL, FLUX.1 dev/schnell) prosto z HuggingFace/CivitAI, bez
-terminala i bez osobnego skryptu.
+**Obraz ma wbudowany jeden model: CyberRealisticXL V10.0 FP16** — pojawi się
+w liście modeli InvokeAI automatycznie, bez pobierania. Każdy kolejny model
+(inne checkpointy, LoRA) doinstalowujesz sam przez **wbudowany Model
+Manager** — jednym kliknięciem, prosto z HuggingFace/Civitai, bez terminala
+i bez osobnego skryptu (tokeny z punktu 1a sprawiają, że to też przebiega
+płynnie, bez zawieszek).
 
 **WAŻNE — inny zestaw modeli niż w wersjach v1-v14.** InvokeAI NIE obsługuje
 Qwen-Image-Edit, Flux.1 Kontext Dev ani SUPIR (to były modele/węzły
@@ -139,17 +171,23 @@ zaglądać ręcznie.
 
 ## 6. KRYTYCZNE — zanim zamkniesz poda
 
-**Container Disk jest kasowany bezpowrotnie przy Stop i przy Terminate.**
-Zanim klikniesz jedno albo drugie:
+**Container Disk jest kasowany bezpowrotnie przy Terminate** (Stop w teorii
+zachowuje dysk i pozwala wznowić tego samego poda później — ale w praktyce,
+sprawdzone doświadczalnie, RunPod czasem po prostu **nie potrafi
+wznowić zatrzymanego poda** na tej samej karcie GPU ("Your Pod's GPUs are no
+longer available" / "Failed to get mount info for source pod") — wtedy
+jedyną drogą jest migracja (jeśli się uda) albo Terminate i postawienie
+nowego poda od zera. Traktuj więc Stop jako "prawdopodobnie bezpieczne", nie
+"gwarantowane" — i zawsze rób poniższe, zanim klikniesz cokolwiek:
 
 1. Pobierz na swój komputer wszystko z `/workspace/output/` (przez Web
    Terminal → download, albo dowolny sposób transferu plików z poda).
 2. Dopiero potem **Stop** lub **Terminate** poda.
 
-Nie ma żadnego "zapisz i wróć później" — to co nie zostało pobrane, ginie.
-To samo dotyczy modeli pobranych przez Model Manager InvokeAI — one też
-znikają razem z Container Diskiem i trzeba je ściągnąć ponownie w kolejnej
-sesji.
+To co nie zostało pobrane, może zniknąć bezpowrotnie. Modele/LoRA
+doinstalowane ręcznie przez Model Manager (czyli wszystko poza wbudowanym
+CyberRealisticXL) też nie przetrwają utraty Container Disku — trzeba je
+ściągnąć ponownie w kolejnej sesji/na nowym podzie.
 
 ---
 
