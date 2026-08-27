@@ -49,9 +49,21 @@ echo "OK"
 # uzytkownik nie musial robic tego recznie w terminalu po kazdym starcie.
 # Idempotentne i bezpieczne do uruchomienia bez zadnego tokenu (obie sekcje
 # sa pomijane, jesli dana zmienna jest pusta/nieustawiona).
+#
+# KRYTYCZNE (naprawa po realnym incydencie na RunPod, sierpien 2026): oba
+# bloki ponizej sa CELOWO opakowane w "if ... ; then ... ; else ... ; fi",
+# NIE wolno tego uproscic z powrotem do samego wywolania pythona. Powod:
+# skrypt ma ustawione "set -e" (przerwij caly skrypt przy pierwszym bledzie)
+# - bez tego opakowania, zly/odrzucony przez serwer token (literowka,
+# spacja, zly typ tokenu, wygasly klucz) zabijalby CALY skrypt startowy
+# W TYM MIEJSCU, zanim InvokeAI w ogole zdazylby wystartowac. Realnie
+# zaobserwowane na podzie uzytkownika: RunPod probowal restartowac kontener
+# co ~15-20s w nieskonczonosc, za kazdym razem umierajac dokladnie tu -
+# InvokeAI ANI RAZU nie zdazyl wystartowac. Zly token ma dawac ostrzezenie
+# i kontynuacje BEZ danego tokenu, nigdy nie ma prawa zablokowac calego poda.
 log_elapsed "=== [2/3] Tokeny HuggingFace / Civitai (jesli ustawione) ==="
 if [ -n "${CIVITAI_API_KEY:-}" ]; then
-    /workspace/invokeai/.venv/bin/python -c "
+    if /workspace/invokeai/.venv/bin/python -c "
 import os, yaml
 p = '/workspace/invokeai/root/invokeai.yaml'
 with open(p) as f:
@@ -61,19 +73,25 @@ d['remote_api_tokens'] = [t for t in d['remote_api_tokens'] if 'civitai' not in 
 d['remote_api_tokens'].append({'url_regex': 'civitai\\\\.com', 'token': os.environ['CIVITAI_API_KEY']})
 with open(p, 'w') as f:
     yaml.dump(d, f)
-"
-    echo "OK: token Civitai skonfigurowany."
+"; then
+        echo "OK: token Civitai skonfigurowany."
+    else
+        echo "UWAGA: nie udalo sie zapisac tokenu Civitai (blad zapisu configu) - kontynuuje BEZ niego." >&2
+    fi
 else
     echo "(pomijam - CIVITAI_API_KEY nieustawiony)"
 fi
 
 if [ -n "${HUGGINGFACE_TOKEN:-}" ]; then
-    /workspace/invokeai/.venv/bin/python -c "
+    if /workspace/invokeai/.venv/bin/python -c "
 import os
 import huggingface_hub
 huggingface_hub.login(token=os.environ['HUGGINGFACE_TOKEN'], add_to_git_credential=False)
-"
-    echo "OK: token HuggingFace skonfigurowany."
+"; then
+        echo "OK: token HuggingFace skonfigurowany."
+    else
+        echo "UWAGA: token HuggingFace odrzucony przez serwer (bledny/wygasly/zle skopiowany?) - kontynuuje BEZ logowania HF. Sprawdz wartosc Secreta w RunPod." >&2
+    fi
 else
     echo "(pomijam - HUGGINGFACE_TOKEN nieustawiony)"
 fi
