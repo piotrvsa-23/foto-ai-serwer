@@ -1,0 +1,32 @@
+name: Test tokenu Civitai (szybki, bez buildu obrazu)
+
+# Jednorazowy, lekki test: sprawdza WYLACZNIE czy sekret CIVITAI_API_KEY
+# dziala z URL-em LoRA "Add Detail - Slider", zanim czeka sie na caly,
+# wielominutowy build obrazu Docker. Nic tu nie buduje ani nie pushuje -
+# tylko jeden curl z naglowkiem Authorization, dokladnie jak w Dockerfile.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sprawdz pobranie LoRA z Civitai (HEAD, bez pobierania calego pliku)
+        env:
+          TOKEN: ${{ secrets.CIVITAI_API_KEY }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "BLAD: sekret CIVITAI_API_KEY jest pusty/nieustawiony w tym repo." >&2
+            exit 1
+          fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L \
+              -H "Authorization: Bearer $TOKEN" \
+              "https://civitai.com/api/download/models/1506027?fileId=1406088")
+          echo "HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "OK: token dziala, plik jest dostepny (200)."
+          else
+            echo "BLAD: serwer Civitai zwrocil status $HTTP_CODE (oczekiwano 200)." >&2
+            exit 1
+          fi
