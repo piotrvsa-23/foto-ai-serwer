@@ -142,6 +142,74 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
     && echo "fd5e870b5bbce4bddeb64f4bb8e49c57f84ab793c0262a503f0123be435e667d  /workspace/invokeai/root/models/sdxl/main/CyberRealisticXLPlay_V10.0_FP16.safetensors" \
         | sha256sum -c -
 
+# ==============================================================================
+# v6.14.0_v03_CyberRXL_v10 (sierpien 2026) — na wyrazna prosbe uzytkownika:
+# caly "SDXL Starter Bundle" z InvokeAI zaszyty w obrazie (VAE, IP-Adapter,
+# 6x ControlNet, upscaler SwinIR) - POZA "Juggernaut XL v9" (celowo pominiety,
+# to kolejny, zbedny pelny checkpoint SDXL - uzytkownik ma juz swoj wybrany,
+# CyberRealisticXL powyzej).
+#
+# Zrodla (repo_id/URL) przepisane WPROST ze zrodla InvokeAI, nie z pamieci -
+# invokeai/backend/model_manager/starter_models.py, lista "sdxl_bundle" (stan
+# na InvokeAI 6.14.0). "IP Adapter SDXL Image Encoder" jest tu dodany jako
+# zaleznosc obu wtyczek IP-Adapter (bez niego same IP-Adaptery nie dzialaja) -
+# InvokeAI liczy go jako 12. pozycje przy instalacji calego bundla w UI.
+#
+# Repo-only zrodla (VAE, encoder, ControlNet) to wielo-plikowe foldery
+# w stylu diffusers (config.json + wagi) - pobierane przez snapshot_download
+# (ta sama biblioteka huggingface_hub, ktorej InvokeAI juz uzywa wewnetrznie
+# do tego samego celu), NIE przez pojedynczy curl jak przy checkpointcie -
+# pojedynczy plik by tu nie wystarczyl. Scan_models_on_startup (nizej)
+# rozpoznaje taki caly folder jako jeden model po obecnosci config.json/
+# model_index.json - sprawdzone wprost w kodzie InvokeAI (search.py,
+# ModelSearch._walk_directory).
+#
+# UWAGA: LoRA "Add Detail - Slider" z Civitai (link podany przez uzytkownika)
+# swiadomie NIE jest tu zaszyta - jej pobranie przez Civitai API wymaga
+# tokenu (potwierdzone realnym testem: 401 Unauthorized bez niego), a
+# zgodnie z ustalonymi zasadami bezpieczenstwa (patrz historia rozmowy)
+# ZADEN token uzytkownika nie trafia do tego repo ani obrazu. Zeby zaszyc ten
+# konkretny plik w przyszlym buildzie, potrzebny jest OSOBNY sekret GitHub
+# Actions (np. CIVITAI_API_KEY w ustawieniach repo, analogicznie do juz
+# istniejacego DOCKERHUB_TOKEN) przekazywany przez --secret w buildzie, nigdy
+# zapisywany w warstwie obrazu. Do tego czasu doinstalowuje sie ja recznie
+# przez UI (dziala juz plynnie dzieki automatyzacji tokenow w start.sh).
+RUN mkdir -p /workspace/invokeai/root/models/sdxl/vae \
+             /workspace/invokeai/root/models/any/clip_vision \
+             /workspace/invokeai/root/models/sdxl/controlnet \
+             /workspace/invokeai/root/models/sdxl/ip_adapter \
+             /workspace/invokeai/root/models/any/upscale \
+    && /workspace/invokeai/.venv/bin/python -c "
+from huggingface_hub import snapshot_download
+
+repos = {
+    'madebyollin/sdxl-vae-fp16-fix': '/workspace/invokeai/root/models/sdxl/vae/sdxl-vae-fp16-fix',
+    'InvokeAI/ip_adapter_sdxl_image_encoder': '/workspace/invokeai/root/models/any/clip_vision/ip_adapter_sdxl_image_encoder',
+    'xinsir/controlNet-canny-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-canny-sdxl-1.0',
+    'diffusers/controlNet-depth-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-depth-sdxl-1.0',
+    'SargeZT/controlNet-sd-xl-1.0-softedge-dexined': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-softedge-dexined-sdxl',
+    'xinsir/controlNet-openpose-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-openpose-sdxl-1.0',
+    'xinsir/controlNet-scribble-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-scribble-sdxl-1.0',
+    'xinsir/controlNet-tile-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-tile-sdxl-1.0',
+}
+for repo_id, dest in repos.items():
+    print(f'--- snapshot_download {repo_id} -> {dest} ---')
+    snapshot_download(repo_id=repo_id, local_dir=dest)
+"
+
+# Pojedyncze pliki bundla (IP-Adapter x2, upscaler SwinIR) - te maja
+# bezposrednie URL-e w starter_models.py, wiec zwykly curl (jak przy
+# checkpointcie) wystarczy, bez snapshot_download.
+RUN curl -L --fail --retry 3 --retry-delay 5 \
+        -o /workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter_sdxl_vit-h.safetensors \
+        "https://huggingface.co/InvokeAI/ip_adapter_sdxl_vit_h/resolve/main/ip-adapter_sdxl_vit-h.safetensors" \
+    && curl -L --fail --retry 3 --retry-delay 5 \
+        -o /workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter-plus_sdxl_vit-h.safetensors \
+        "https://huggingface.co/InvokeAI/ip-adapter-plus_sdxl_vit-h/resolve/main/ip-adapter-plus_sdxl_vit-h.safetensors" \
+    && curl -L --fail --retry 3 --retry-delay 5 \
+        -o "/workspace/invokeai/root/models/any/upscale/003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-L_x4_GAN-with-dict-keys-params-and-params_ema.pth" \
+        "https://github.com/JingyunLiang/SwinIR/releases/download/v0.0/003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-L_x4_GAN-with-dict-keys-params-and-params_ema.pth"
+
 # invokeai.yaml zaszyty w obrazie z jednym kluczowym ustawieniem:
 # scan_models_on_startup: true. Bez tego zaszyty wyzej plik .safetensors
 # lezalby w folderze modeli, ale InvokeAI NIGDY by go sam nie "zobaczyl" w UI
@@ -163,9 +231,10 @@ EOF
 
 # ==============================================================================
 # Skrypt startowy — jedyna rzecz uruchamiana automatycznie przy starcie poda.
-# Poza modelem zaszytym wyzej, kolejne modele/LoRA NIE sa czescia obrazu -
-# InvokeAI ma wlasny, wbudowany w UI Model Manager z gotowa lista modeli do
-# pobrania jednym klikiem, wiec osobny download_models.sh jest tu zbedny.
+# Poza checkpointem i bundlem SDXL zaszytymi wyzej, kolejne modele/LoRA NIE sa
+# czescia obrazu - InvokeAI ma wlasny, wbudowany w UI Model Manager z gotowa
+# lista modeli do pobrania jednym klikiem, wiec osobny download_models.sh
+# jest tu zbedny.
 # ==============================================================================
 COPY scripts/start.sh /workspace/scripts/start.sh
 RUN chmod +x /workspace/scripts/start.sh
