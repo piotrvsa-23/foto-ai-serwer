@@ -19,6 +19,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # timeout-minutes (sierpien 2026, po TRZECH buildach z rzedu, ktore
+    # wisialy ~25-30 min i konczyly sie "duration_ms: 0" + brak logow -
+    # objaw "zombie" runnera, nie normalny blad skryptu, przetrwal nawet
+    # dodanie --connect-timeout/--max-time do wszystkich curl w Dockerfile,
+    # wiec przyczyna NIE jest w samym curlu). Bez tego limitu taki zawieszony
+    # build wisi bez konca i marnuje czas/CI minuty bez zadnego czytelnego
+    # bledu - GitHub Actions sam przerwie go po 20 min z jasnym "cancelled".
+    timeout-minutes: 20
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -51,13 +59,17 @@ jobs:
       # (patrz komentarz w Dockerfile) - build-push-action przekazuje go
       # do BuildKit jako secret, nigdy jako zwykly ARG/ENV zapisywany
       # w warstwie obrazu.
+      # cache-from/cache-to: type=gha TYMCZASOWO wylaczone (sierpien 2026) -
+      # diagnostyka po 3 zawieszonych buildach z rzedu ("duration_ms: 0",
+      # brak logow), zeby wykluczyc/potwierdzic zapis duzego cache do
+      # serwisu GitHub Actions Cache jako mozliwa przyczyna zawieszenia
+      # (curl z timeoutami juz wykluczony jako jedyna przyczyna). Przywrocic
+      # po potwierdzeniu, ze bez cache build przechodzi normalnie.
       - name: Zbuduj obraz (bez push)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
           tags: foto-ai-serwer:test
-          cache-from: type=gha
-          cache-to: type=gha
           secrets: |
             CIVITAI_API_KEY=${{ secrets.CIVITAI_API_KEY }}
