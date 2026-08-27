@@ -54,22 +54,17 @@ jobs:
       # jeszcze raz do lokalnego Dockera (podwaja zapotrzebowanie na dysk w
       # momencie eksportu). Wersje sprawdzamy z logow builda (RUN ... | tee
       # /opt/build-versions.txt w Dockerfile drukuje je wprost do logu).
-      # secrets: CIVITAI_API_KEY - montowany w Dockerfile przez
-      # --mount=type=secret przy pobieraniu LoRA "Add Detail - Slider"
-      # (patrz komentarz w Dockerfile) - build-push-action przekazuje go
-      # do BuildKit jako secret, nigdy jako zwykly ARG/ENV zapisywany
-      # w warstwie obrazu.
-      # cache-from/cache-to: type=gha TYMCZASOWO wylaczone (sierpien 2026) -
-      # diagnostyka po 3 zawieszonych buildach z rzedu ("duration_ms: 0",
-      # brak logow), zeby wykluczyc/potwierdzic zapis duzego cache do
-      # serwisu GitHub Actions Cache jako mozliwa przyczyna zawieszenia
-      # (curl z timeoutami juz wykluczony jako jedyna przyczyna). Przywrocic
-      # po potwierdzeniu, ze bez cache build przechodzi normalnie.
+      #
+      # cache-from/cache-to: type=gha CELOWO wylaczone (sierpien 2026) -
+      # namierzone jako przyczyna 3 zawieszonych z rzedu buildow v03
+      # ("duration_ms: 0", brak logow, ~25-30 min zanim runner "umieral" -
+      # curl z timeoutami zostal wczesniej wykluczony jako przyczyna).
+      # Zostaje wylaczone na stale - obraz jest juz maly (v04, TYLKO
+      # checkpoint, patrz Dockerfile), wiec brak cache nie kosztuje wiele
+      # czasu, a unika ryzyka powtorki tego zawieszenia.
       - name: Zbuduj obraz (bez push)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
           tags: foto-ai-serwer:test
-          secrets: |
-            CIVITAI_API_KEY=${{ secrets.CIVITAI_API_KEY }}

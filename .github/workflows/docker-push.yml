@@ -23,7 +23,8 @@ jobs:
     # timeout-minutes + brak cache-from/cache-to: type=gha - patrz
     # docker-build-test.yml (identyczna diagnostyka, sierpien 2026):
     # 3 buildy z rzedu wisialy ~25-30 min z "duration_ms: 0" i bez logow,
-    # naprawilo to dopiero wylaczenie cache GHA + timeout.
+    # naprawilo to dopiero wylaczenie cache GHA + timeout. Zostaje wylaczone
+    # na stale (obraz jest juz maly - v04, TYLKO checkpoint, patrz Dockerfile).
     timeout-minutes: 25
     steps:
       - name: Checkout repo
@@ -70,13 +71,9 @@ jobs:
             echo "TAGS_EOF"
           } >> "$GITHUB_OUTPUT"
 
-      # secrets: CIVITAI_API_KEY - patrz komentarz w docker-build-test.yml
-      # (ten sam mechanizm --mount=type=secret w Dockerfile).
       - name: Zbuduj i wypchnij obraz
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ${{ steps.tags.outputs.list }}
-          secrets: |
-            CIVITAI_API_KEY=${{ secrets.CIVITAI_API_KEY }}

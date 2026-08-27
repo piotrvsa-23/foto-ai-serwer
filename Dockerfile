@@ -143,101 +143,29 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
         | sha256sum -c -
 
 # ==============================================================================
-# v6.14.0_v03_CyberRXL_v10 (sierpien 2026) — na wyrazna prosbe uzytkownika:
-# okrojona wersja "SDXL Starter Bundle" z InvokeAI zaszyta w obrazie (VAE,
-# IP-Adapter Standard + Plus/Precise + ich zaleznosc Image Encoder, JEDEN
-# ControlNet - canny) + LoRA "Add Detail - Slider" z Civitai. POZA "Juggernaut
-# XL v9" (celowo pominiety - kolejny, zbedny pelny checkpoint SDXL, uzytkownik
-# ma juz swoj wybrany, CyberRealisticXL powyzej).
+# v6.14.0_v04_CyberRXL_v10 (sierpien 2026) — PIVOT po nieudanych probach v03:
+# proby zaszycia dodatkowych modeli (VAE/IP-Adapter/ControlNet/LoRA) WPROST
+# W OBRAZIE (budowanych w GitHub Actions) padaly wielokrotnie na dwoch
+# niezaleznych problemach infrastruktury CI, niezwiazanych z samym kodem:
+# (1) darmowy runner GitHub Actions ma za malo miejsca na dysku (ok. 16-17GB)
+# na caly zestaw duzych plikow modeli razem z checkpointem, (2) buildy
+# wisialy w nieskonczonosc (~25-30 min, "duration_ms: 0", brak logow) -
+# przyczyna finalnie namierzona na cache-from/cache-to: type=gha w workflow
+# (naprawione w docker-build-test.yml/docker-push.yml), ale to pokazalo, ze
+# CI GitHub Actions to zawodne, kruche miejsce na duze pobierania plikow.
 #
-# UWAGA rozmiar/dysk (sierpien 2026, po DWOCH nieudanych probach): darmowy
-# runner GitHub Actions ma realnie ok. 16-17GB wolnego miejsca na pobierane
-# tu pliki modeli (potwierdzone empirycznie - build padal przy "No space
-# left on device" najpierw na ControlNet Soft Edge ~5.5GB, potem - nawet PO
-# jego usunieciu - na ControlNet Openpose ~2.5GB). Caly oryginalny bundle
-# (6x ControlNet + checkpoint) to ok. 29GB - fizycznie sie nie miesci.
-# Ten zestaw (checkpoint 6.6GB + VAE 0.3GB + Image Encoder 2.5GB +
-# IP-Adapter x2 1.4GB + ControlNet canny 2.5GB + LoRA 0.25GB = ok. 13.55GB)
-# zostal policzony z uzytkownikiem PRZED wprowadzeniem zmian wlasnie zeby
-# zmiescic sie z zapasem w tym limicie. Pozostale ControlNety (depth,
-# softedge, openpose, scribble, tile) i SwinIR NIE sa juz tu zaszyte -
-# doinstalowuje sie je recznie przez UI, jesli beda potrzebne.
-#
-# UWAGA (naprawa "wisniecia" builda, sierpien 2026): kazdy curl w tym
-# Dockerfile ma teraz --connect-timeout 15 --max-time 900. Bez tego, jesli
-# jakies polaczenie (np. Civitai wobec adresow IP centrow danych GitHub
-# Actions) sie zawiesi zamiast zerwac, curl czeka W NIESKONCZONOSC - build
-# wtedy nie konczy sie zadnym czytelnym bledem, tylko wisi (obserwowane:
-# dwa kolejne buildy umarly po ~25-30 min z "duration_ms: 0" i bez logow,
-# co wyglada na przymusowe ubicie runnera z zewnatrz, nie normalny blad
-# skryptu). --max-time 900 (15 min) gwarantuje czytelny blad zamiast tego.
-#
-# Zrodla (repo_id/URL) przepisane WPROST ze zrodla InvokeAI, nie z pamieci -
-# invokeai/backend/model_manager/starter_models.py, lista "sdxl_bundle" (stan
-# na InvokeAI 6.14.0). "IP Adapter SDXL Image Encoder" jest tu dodany jako
-# zaleznosc obu wtyczek IP-Adapter (bez niego same IP-Adaptery nie dzialaja).
-#
-# Repo-only zrodla (VAE, encoder, ControlNet) to wielo-plikowe foldery
-# w stylu diffusers (config.json + wagi) - pobierane przez snapshot_download
-# (ta sama biblioteka huggingface_hub, ktorej InvokeAI juz uzywa wewnetrznie
-# do tego samego celu), NIE przez pojedynczy curl jak przy checkpointcie -
-# pojedynczy plik by tu nie wystarczyl. Scan_models_on_startup (nizej)
-# rozpoznaje taki caly folder jako jeden model po obecnosci config.json/
-# model_index.json - sprawdzone wprost w kodzie InvokeAI (search.py,
-# ModelSearch._walk_directory).
-#
-# UWAGA (naprawa parse errora, sierpien 2026): wieloliniowy string bez "\"
-# na koncu kazdej linii Dockerfile parser rozumie jako KONIEC instrukcji RUN,
-# a linia zaczynajaca sie od "from ..." zostaje wtedy zinterpretowana jako
-# nowa instrukcja FROM ("FROM requires either one or three arguments").
-# Uzywamy wiec tego samego heredoc (<< 'EOF'), ktory juz dziala nizej dla
-# invokeai.yaml - BuildKit traktuje cala tresc miedzy znacznikami jako
-# nieprzetwarzany tekst, bez tego problemu.
-RUN mkdir -p /workspace/invokeai/root/models/sdxl/vae \
-             /workspace/invokeai/root/models/any/clip_vision \
-             /workspace/invokeai/root/models/sdxl/controlnet \
-             /workspace/invokeai/root/models/sdxl/ip_adapter \
-             /workspace/invokeai/root/models/sdxl/lora
-
-RUN /workspace/invokeai/.venv/bin/python << 'PYEOF'
-from huggingface_hub import snapshot_download
-
-repos = {
-    'madebyollin/sdxl-vae-fp16-fix': '/workspace/invokeai/root/models/sdxl/vae/sdxl-vae-fp16-fix',
-    'InvokeAI/ip_adapter_sdxl_image_encoder': '/workspace/invokeai/root/models/any/clip_vision/ip_adapter_sdxl_image_encoder',
-    'xinsir/controlNet-canny-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-canny-sdxl-1.0',
-}
-for repo_id, dest in repos.items():
-    print(f'--- snapshot_download {repo_id} -> {dest} ---')
-    snapshot_download(repo_id=repo_id, local_dir=dest)
-PYEOF
-
-# Pojedyncze pliki bundla (IP-Adapter x2) - te maja bezposrednie URL-e
-# w starter_models.py, wiec zwykly curl (jak przy checkpointcie) wystarczy,
-# bez snapshot_download. SwinIR (upscaler) NIE jest juz tu zaszyty - patrz
-# uzasadnienie limitu dysku wyzej.
-RUN curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
-        -o /workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter_sdxl_vit-h.safetensors \
-        "https://huggingface.co/InvokeAI/ip_adapter_sdxl_vit_h/resolve/main/ip-adapter_sdxl_vit-h.safetensors" \
-    && curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
-        -o /workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter-plus_sdxl_vit-h.safetensors \
-        "https://huggingface.co/InvokeAI/ip-adapter-plus_sdxl_vit-h/resolve/main/ip-adapter-plus_sdxl_vit-h.safetensors"
-
-# LoRA "Add Detail - Slider" z Civitai (link podany przez uzytkownika) -
-# jej pobranie przez Civitai API wymaga tokenu (potwierdzone realnym testem:
-# 401 Unauthorized bez niego). Token przekazany WYLACZNIE przez BuildKit
-# --mount=type=secret - montowany jako plik dostepny tylko wewnatrz TEJ
-# jednej komendy RUN, NIGDY zapisywany w warstwie obrazu ani w historii
-# builda (potwierdzone mechanizmem BuildKit, nie zwyklym ARG/ENV, ktory
-# zostalby trwale w metadanych obrazu). Sekret "CIVITAI_API_KEY" musi byc
-# ustawiony jako GitHub Actions repository secret (Settings -> Secrets and
-# variables -> Actions) i przekazany w workflow (secrets: CIVITAI_API_KEY=...
-# w docker/build-push-action) - patrz docker-build-test.yml/docker-push.yml.
-RUN --mount=type=secret,id=CIVITAI_API_KEY \
-    curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
-        -H "Authorization: Bearer $(cat /run/secrets/CIVITAI_API_KEY)" \
-        -o /workspace/invokeai/root/models/sdxl/lora/add-detail-slider_sdxl.safetensors \
-        "https://civitai.com/api/download/models/1506027?fileId=1406088"
+# Decyzja: obraz WRACA do prostego stanu jak v02 (TYLKO checkpoint zaszyty
+# na stale, sprawdzony, szybki build ~5 min). Dodatkowe modele (VAE,
+# IP-Adapter, wybrane ControlNety, SwinIR, LoRA z Civitai) NIE sa juz
+# zaszywane w obrazie - zamiast tego scripts/start.sh sam je pobiera
+# automatycznie PRZY KAZDYM STARCIE PODA na RunPod, PRZED uruchomieniem
+# InvokeAI. RunPod ma duzo wiecej miejsca na dysku i stabilniejsze lacze niz
+# wspoldzielony runner CI, wiec te same pobierania, ktore zawodzily w
+# GitHub Actions, dzialaja tu bez problemu - to jest DOKLADNIE ten sam kod
+# (huggingface_hub.snapshot_download / curl), tylko przeniesiony z czasu
+# budowania obrazu na czas startu kontenera. Zobacz scripts/start.sh po
+# szczegoly listy pobieranych modeli i uzasadnienie wyboru kazdego z nich.
+# ==============================================================================
 
 # invokeai.yaml zaszyty w obrazie z jednym kluczowym ustawieniem:
 # scan_models_on_startup: true. Bez tego zaszyty wyzej plik .safetensors
@@ -260,10 +188,11 @@ EOF
 
 # ==============================================================================
 # Skrypt startowy — jedyna rzecz uruchamiana automatycznie przy starcie poda.
-# Poza checkpointem i bundlem SDXL zaszytymi wyzej, kolejne modele/LoRA NIE sa
-# czescia obrazu - InvokeAI ma wlasny, wbudowany w UI Model Manager z gotowa
-# lista modeli do pobrania jednym klikiem, wiec osobny download_models.sh
-# jest tu zbedny.
+# Poza checkpointem zaszytym wyzej, DODATKOWE modele (VAE, IP-Adapter,
+# wybrane ControlNety, SwinIR, LoRA z Civitai) NIE sa czescia obrazu -
+# start.sh sam je automatycznie pobiera przy KAZDYM starcie poda, przed
+# uruchomieniem InvokeAI (patrz uzasadnienie w sekcji v6.14.0_v04 wyzej
+# i komentarze w samym scripts/start.sh).
 # ==============================================================================
 COPY scripts/start.sh /workspace/scripts/start.sh
 RUN chmod +x /workspace/scripts/start.sh
