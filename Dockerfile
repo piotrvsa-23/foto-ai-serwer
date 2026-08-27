@@ -135,7 +135,7 @@ print('torch cuda (build):', torch.version.cuda)" \
 # build PADNIE, jesli pobrany plik nie zgadza sie z tym hashem (ochrona przed
 # cichym zaszyciem uciete/uszkodzonej kopii modelu w obrazie).
 RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
-    && curl -L --fail --retry 3 --retry-delay 5 \
+    && curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
         -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
         -o /workspace/invokeai/root/models/sdxl/main/CyberRealisticXLPlay_V10.0_FP16.safetensors \
         "https://huggingface.co/cyberdelia/CyberRealisticXL/resolve/main/CyberRealisticXLPlay_V10.0_FP16.safetensors" \
@@ -162,6 +162,15 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
 # zmiescic sie z zapasem w tym limicie. Pozostale ControlNety (depth,
 # softedge, openpose, scribble, tile) i SwinIR NIE sa juz tu zaszyte -
 # doinstalowuje sie je recznie przez UI, jesli beda potrzebne.
+#
+# UWAGA (naprawa "wisniecia" builda, sierpien 2026): kazdy curl w tym
+# Dockerfile ma teraz --connect-timeout 15 --max-time 900. Bez tego, jesli
+# jakies polaczenie (np. Civitai wobec adresow IP centrow danych GitHub
+# Actions) sie zawiesi zamiast zerwac, curl czeka W NIESKONCZONOSC - build
+# wtedy nie konczy sie zadnym czytelnym bledem, tylko wisi (obserwowane:
+# dwa kolejne buildy umarly po ~25-30 min z "duration_ms: 0" i bez logow,
+# co wyglada na przymusowe ubicie runnera z zewnatrz, nie normalny blad
+# skryptu). --max-time 900 (15 min) gwarantuje czytelny blad zamiast tego.
 #
 # Zrodla (repo_id/URL) przepisane WPROST ze zrodla InvokeAI, nie z pamieci -
 # invokeai/backend/model_manager/starter_models.py, lista "sdxl_bundle" (stan
@@ -207,10 +216,10 @@ PYEOF
 # w starter_models.py, wiec zwykly curl (jak przy checkpointcie) wystarczy,
 # bez snapshot_download. SwinIR (upscaler) NIE jest juz tu zaszyty - patrz
 # uzasadnienie limitu dysku wyzej.
-RUN curl -L --fail --retry 3 --retry-delay 5 \
+RUN curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
         -o /workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter_sdxl_vit-h.safetensors \
         "https://huggingface.co/InvokeAI/ip_adapter_sdxl_vit_h/resolve/main/ip-adapter_sdxl_vit-h.safetensors" \
-    && curl -L --fail --retry 3 --retry-delay 5 \
+    && curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
         -o /workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter-plus_sdxl_vit-h.safetensors \
         "https://huggingface.co/InvokeAI/ip-adapter-plus_sdxl_vit-h/resolve/main/ip-adapter-plus_sdxl_vit-h.safetensors"
 
@@ -225,7 +234,7 @@ RUN curl -L --fail --retry 3 --retry-delay 5 \
 # variables -> Actions) i przekazany w workflow (secrets: CIVITAI_API_KEY=...
 # w docker/build-push-action) - patrz docker-build-test.yml/docker-push.yml.
 RUN --mount=type=secret,id=CIVITAI_API_KEY \
-    curl -L --fail --retry 3 --retry-delay 5 \
+    curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
         -H "Authorization: Bearer $(cat /run/secrets/CIVITAI_API_KEY)" \
         -o /workspace/invokeai/root/models/sdxl/lora/add-detail-slider_sdxl.safetensors \
         "https://civitai.com/api/download/models/1506027?fileId=1406088"
