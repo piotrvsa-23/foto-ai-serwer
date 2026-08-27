@@ -6,6 +6,9 @@ name: Test tokenu Civitai (szybki, bez buildu obrazu)
 # tylko jeden curl z naglowkiem Authorization, dokladnie jak w Dockerfile.
 
 on:
+  push:
+    paths:
+      - '.github/workflows/test-civitai-token.yml'
   workflow_dispatch: {}
 
 jobs:
