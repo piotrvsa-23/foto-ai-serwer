@@ -144,24 +144,29 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
 
 # ==============================================================================
 # v6.14.0_v03_CyberRXL_v10 (sierpien 2026) — na wyrazna prosbe uzytkownika:
-# caly "SDXL Starter Bundle" z InvokeAI zaszyty w obrazie (VAE, IP-Adapter,
-# 5x ControlNet, upscaler SwinIR) - POZA "Juggernaut XL v9" (celowo pominiety,
-# to kolejny, zbedny pelny checkpoint SDXL - uzytkownik ma juz swoj wybrany,
-# CyberRealisticXL powyzej).
+# okrojona wersja "SDXL Starter Bundle" z InvokeAI zaszyta w obrazie (VAE,
+# IP-Adapter Standard + Plus/Precise + ich zaleznosc Image Encoder, JEDEN
+# ControlNet - canny) + LoRA "Add Detail - Slider" z Civitai. POZA "Juggernaut
+# XL v9" (celowo pominiety - kolejny, zbedny pelny checkpoint SDXL, uzytkownik
+# ma juz swoj wybrany, CyberRealisticXL powyzej).
 #
-# UWAGA: ControlNet "Soft Edge Detection" (SargeZT/controlNet-sd-xl-1.0-
-# softedge-dexined, ~5GB) celowo pominiety w tym buildzie - na wyrazna
-# prosbe uzytkownika po realnym niepowodzeniu builda w GitHub Actions
-# (za malo wolnego miejsca na runnerze podczas snapshot_download tego
-# repo, ok. 2.3GB wolnego przy oczekiwanych ~5GB, dodatkowo blad
-# Xet: "File reconstruction error: Internal Writer Error: Background
-# writer channel closed"). Pozostale 5 ControlNetow z bundla zostaje.
+# UWAGA rozmiar/dysk (sierpien 2026, po DWOCH nieudanych probach): darmowy
+# runner GitHub Actions ma realnie ok. 16-17GB wolnego miejsca na pobierane
+# tu pliki modeli (potwierdzone empirycznie - build padal przy "No space
+# left on device" najpierw na ControlNet Soft Edge ~5.5GB, potem - nawet PO
+# jego usunieciu - na ControlNet Openpose ~2.5GB). Caly oryginalny bundle
+# (6x ControlNet + checkpoint) to ok. 29GB - fizycznie sie nie miesci.
+# Ten zestaw (checkpoint 6.6GB + VAE 0.3GB + Image Encoder 2.5GB +
+# IP-Adapter x2 1.4GB + ControlNet canny 2.5GB + LoRA 0.25GB = ok. 13.55GB)
+# zostal policzony z uzytkownikiem PRZED wprowadzeniem zmian wlasnie zeby
+# zmiescic sie z zapasem w tym limicie. Pozostale ControlNety (depth,
+# softedge, openpose, scribble, tile) i SwinIR NIE sa juz tu zaszyte -
+# doinstalowuje sie je recznie przez UI, jesli beda potrzebne.
 #
 # Zrodla (repo_id/URL) przepisane WPROST ze zrodla InvokeAI, nie z pamieci -
 # invokeai/backend/model_manager/starter_models.py, lista "sdxl_bundle" (stan
 # na InvokeAI 6.14.0). "IP Adapter SDXL Image Encoder" jest tu dodany jako
-# zaleznosc obu wtyczek IP-Adapter (bez niego same IP-Adaptery nie dzialaja) -
-# InvokeAI liczy go jako 12. pozycje przy instalacji calego bundla w UI.
+# zaleznosc obu wtyczek IP-Adapter (bez niego same IP-Adaptery nie dzialaja).
 #
 # Repo-only zrodla (VAE, encoder, ControlNet) to wielo-plikowe foldery
 # w stylu diffusers (config.json + wagi) - pobierane przez snapshot_download
@@ -172,16 +177,6 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
 # model_index.json - sprawdzone wprost w kodzie InvokeAI (search.py,
 # ModelSearch._walk_directory).
 #
-# UWAGA: LoRA "Add Detail - Slider" z Civitai (link podany przez uzytkownika)
-# swiadomie NIE jest tu zaszyta - jej pobranie przez Civitai API wymaga
-# tokenu (potwierdzone realnym testem: 401 Unauthorized bez niego), a
-# zgodnie z ustalonymi zasadami bezpieczenstwa (patrz historia rozmowy)
-# ZADEN token uzytkownika nie trafia do tego repo ani obrazu. Zeby zaszyc ten
-# konkretny plik w przyszlym buildzie, potrzebny jest OSOBNY sekret GitHub
-# Actions (np. CIVITAI_API_KEY w ustawieniach repo, analogicznie do juz
-# istniejacego DOCKERHUB_TOKEN) przekazywany przez --secret w buildzie, nigdy
-# zapisywany w warstwie obrazu. Do tego czasu doinstalowuje sie ja recznie
-# przez UI (dziala juz plynnie dzieki automatyzacji tokenow w start.sh).
 # UWAGA (naprawa parse errora, sierpien 2026): wieloliniowy string bez "\"
 # na koncu kazdej linii Dockerfile parser rozumie jako KONIEC instrukcji RUN,
 # a linia zaczynajaca sie od "from ..." zostaje wtedy zinterpretowana jako
@@ -193,7 +188,7 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/vae \
              /workspace/invokeai/root/models/any/clip_vision \
              /workspace/invokeai/root/models/sdxl/controlnet \
              /workspace/invokeai/root/models/sdxl/ip_adapter \
-             /workspace/invokeai/root/models/any/upscale
+             /workspace/invokeai/root/models/sdxl/lora
 
 RUN /workspace/invokeai/.venv/bin/python << 'PYEOF'
 from huggingface_hub import snapshot_download
@@ -202,28 +197,38 @@ repos = {
     'madebyollin/sdxl-vae-fp16-fix': '/workspace/invokeai/root/models/sdxl/vae/sdxl-vae-fp16-fix',
     'InvokeAI/ip_adapter_sdxl_image_encoder': '/workspace/invokeai/root/models/any/clip_vision/ip_adapter_sdxl_image_encoder',
     'xinsir/controlNet-canny-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-canny-sdxl-1.0',
-    'diffusers/controlNet-depth-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-depth-sdxl-1.0',
-    'xinsir/controlNet-openpose-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-openpose-sdxl-1.0',
-    'xinsir/controlNet-scribble-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-scribble-sdxl-1.0',
-    'xinsir/controlNet-tile-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-tile-sdxl-1.0',
 }
 for repo_id, dest in repos.items():
     print(f'--- snapshot_download {repo_id} -> {dest} ---')
     snapshot_download(repo_id=repo_id, local_dir=dest)
 PYEOF
 
-# Pojedyncze pliki bundla (IP-Adapter x2, upscaler SwinIR) - te maja
-# bezposrednie URL-e w starter_models.py, wiec zwykly curl (jak przy
-# checkpointcie) wystarczy, bez snapshot_download.
+# Pojedyncze pliki bundla (IP-Adapter x2) - te maja bezposrednie URL-e
+# w starter_models.py, wiec zwykly curl (jak przy checkpointcie) wystarczy,
+# bez snapshot_download. SwinIR (upscaler) NIE jest juz tu zaszyty - patrz
+# uzasadnienie limitu dysku wyzej.
 RUN curl -L --fail --retry 3 --retry-delay 5 \
         -o /workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter_sdxl_vit-h.safetensors \
         "https://huggingface.co/InvokeAI/ip_adapter_sdxl_vit_h/resolve/main/ip-adapter_sdxl_vit-h.safetensors" \
     && curl -L --fail --retry 3 --retry-delay 5 \
         -o /workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter-plus_sdxl_vit-h.safetensors \
-        "https://huggingface.co/InvokeAI/ip-adapter-plus_sdxl_vit-h/resolve/main/ip-adapter-plus_sdxl_vit-h.safetensors" \
-    && curl -L --fail --retry 3 --retry-delay 5 \
-        -o "/workspace/invokeai/root/models/any/upscale/003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-L_x4_GAN-with-dict-keys-params-and-params_ema.pth" \
-        "https://github.com/JingyunLiang/SwinIR/releases/download/v0.0/003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-L_x4_GAN-with-dict-keys-params-and-params_ema.pth"
+        "https://huggingface.co/InvokeAI/ip-adapter-plus_sdxl_vit-h/resolve/main/ip-adapter-plus_sdxl_vit-h.safetensors"
+
+# LoRA "Add Detail - Slider" z Civitai (link podany przez uzytkownika) -
+# jej pobranie przez Civitai API wymaga tokenu (potwierdzone realnym testem:
+# 401 Unauthorized bez niego). Token przekazany WYLACZNIE przez BuildKit
+# --mount=type=secret - montowany jako plik dostepny tylko wewnatrz TEJ
+# jednej komendy RUN, NIGDY zapisywany w warstwie obrazu ani w historii
+# builda (potwierdzone mechanizmem BuildKit, nie zwyklym ARG/ENV, ktory
+# zostalby trwale w metadanych obrazu). Sekret "CIVITAI_API_KEY" musi byc
+# ustawiony jako GitHub Actions repository secret (Settings -> Secrets and
+# variables -> Actions) i przekazany w workflow (secrets: CIVITAI_API_KEY=...
+# w docker/build-push-action) - patrz docker-build-test.yml/docker-push.yml.
+RUN --mount=type=secret,id=CIVITAI_API_KEY \
+    curl -L --fail --retry 3 --retry-delay 5 \
+        -H "Authorization: Bearer $(cat /run/secrets/CIVITAI_API_KEY)" \
+        -o /workspace/invokeai/root/models/sdxl/lora/add-detail-slider_sdxl.safetensors \
+        "https://civitai.com/api/download/models/1506027?fileId=1406088"
 
 # invokeai.yaml zaszyty w obrazie z jednym kluczowym ustawieniem:
 # scan_models_on_startup: true. Bez tego zaszyty wyzej plik .safetensors
