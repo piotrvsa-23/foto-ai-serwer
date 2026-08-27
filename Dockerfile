@@ -174,12 +174,20 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
 # istniejacego DOCKERHUB_TOKEN) przekazywany przez --secret w buildzie, nigdy
 # zapisywany w warstwie obrazu. Do tego czasu doinstalowuje sie ja recznie
 # przez UI (dziala juz plynnie dzieki automatyzacji tokenow w start.sh).
+# UWAGA (naprawa parse errora, sierpien 2026): wieloliniowy string bez "\"
+# na koncu kazdej linii Dockerfile parser rozumie jako KONIEC instrukcji RUN,
+# a linia zaczynajaca sie od "from ..." zostaje wtedy zinterpretowana jako
+# nowa instrukcja FROM ("FROM requires either one or three arguments").
+# Uzywamy wiec tego samego heredoc (<< 'EOF'), ktory juz dziala nizej dla
+# invokeai.yaml - BuildKit traktuje cala tresc miedzy znacznikami jako
+# nieprzetwarzany tekst, bez tego problemu.
 RUN mkdir -p /workspace/invokeai/root/models/sdxl/vae \
              /workspace/invokeai/root/models/any/clip_vision \
              /workspace/invokeai/root/models/sdxl/controlnet \
              /workspace/invokeai/root/models/sdxl/ip_adapter \
-             /workspace/invokeai/root/models/any/upscale \
-    && /workspace/invokeai/.venv/bin/python -c "
+             /workspace/invokeai/root/models/any/upscale
+
+RUN /workspace/invokeai/.venv/bin/python << 'PYEOF'
 from huggingface_hub import snapshot_download
 
 repos = {
@@ -195,7 +203,7 @@ repos = {
 for repo_id, dest in repos.items():
     print(f'--- snapshot_download {repo_id} -> {dest} ---')
     snapshot_download(repo_id=repo_id, local_dir=dest)
-"
+PYEOF
 
 # Pojedyncze pliki bundla (IP-Adapter x2, upscaler SwinIR) - te maja
 # bezposrednie URL-e w starter_models.py, wiec zwykly curl (jak przy
