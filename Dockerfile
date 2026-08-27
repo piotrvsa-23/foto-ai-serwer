@@ -145,9 +145,17 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
 # ==============================================================================
 # v6.14.0_v03_CyberRXL_v10 (sierpien 2026) — na wyrazna prosbe uzytkownika:
 # caly "SDXL Starter Bundle" z InvokeAI zaszyty w obrazie (VAE, IP-Adapter,
-# 6x ControlNet, upscaler SwinIR) - POZA "Juggernaut XL v9" (celowo pominiety,
+# 5x ControlNet, upscaler SwinIR) - POZA "Juggernaut XL v9" (celowo pominiety,
 # to kolejny, zbedny pelny checkpoint SDXL - uzytkownik ma juz swoj wybrany,
 # CyberRealisticXL powyzej).
+#
+# UWAGA: ControlNet "Soft Edge Detection" (SargeZT/controlNet-sd-xl-1.0-
+# softedge-dexined, ~5GB) celowo pominiety w tym buildzie - na wyrazna
+# prosbe uzytkownika po realnym niepowodzeniu builda w GitHub Actions
+# (za malo wolnego miejsca na runnerze podczas snapshot_download tego
+# repo, ok. 2.3GB wolnego przy oczekiwanych ~5GB, dodatkowo blad
+# Xet: "File reconstruction error: Internal Writer Error: Background
+# writer channel closed"). Pozostale 5 ControlNetow z bundla zostaje.
 #
 # Zrodla (repo_id/URL) przepisane WPROST ze zrodla InvokeAI, nie z pamieci -
 # invokeai/backend/model_manager/starter_models.py, lista "sdxl_bundle" (stan
@@ -195,7 +203,6 @@ repos = {
     'InvokeAI/ip_adapter_sdxl_image_encoder': '/workspace/invokeai/root/models/any/clip_vision/ip_adapter_sdxl_image_encoder',
     'xinsir/controlNet-canny-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-canny-sdxl-1.0',
     'diffusers/controlNet-depth-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-depth-sdxl-1.0',
-    'SargeZT/controlNet-sd-xl-1.0-softedge-dexined': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-softedge-dexined-sdxl',
     'xinsir/controlNet-openpose-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-openpose-sdxl-1.0',
     'xinsir/controlNet-scribble-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-scribble-sdxl-1.0',
     'xinsir/controlNet-tile-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-tile-sdxl-1.0',
