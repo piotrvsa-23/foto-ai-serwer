@@ -167,6 +167,20 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
 # szczegoly listy pobieranych modeli i uzasadnienie wyboru kazdego z nich.
 # ==============================================================================
 
+# ==============================================================================
+# v6.14.0_v05_CyberRXL_v10 (sierpien 2026) — dodanie Text LLM do "Expand
+# Prompt" (funkcja wbudowana w InvokeAI 6.14.0, docs/features/prompt-tools.md
+# w zrodle InvokeAI): model Qwen3-4B-abliterated pobierany w runtime
+# (scripts/start.sh, ten sam mechanizm co reszta dodatkow ponizej) rozwija
+# krotki opis w szczegolowy prompt z tagami/wagami w stylu SDXL - i, dzieki
+# wielojezycznosci Qwen3 (119+ jezykow, w tym polski), potrafi PRZETLUMACZYC
+# opis z polskiego na angielski PRZED wygenerowaniem promptu (sam CLIP w
+# Cyber tego nie potrafi). Wymaga wlasnego System Promptu ustawionego w UI
+# (patrz uzasadnienie w scripts/start.sh) - domyslny system prompt InvokeAI
+# nie tlumaczy sam z siebie. Zaden checkpoint obrazu tu sie nie zmienia -
+# to czysty dodatek do warsztatu promptowania.
+# ==============================================================================
+
 # invokeai.yaml zaszyty w obrazie z jednym kluczowym ustawieniem:
 # scan_models_on_startup: true. Bez tego zaszyty wyzej plik .safetensors
 # lezalby w folderze modeli, ale InvokeAI NIGDY by go sam nie "zobaczyl" w UI

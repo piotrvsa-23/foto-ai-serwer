@@ -125,6 +125,22 @@ fi
 #     zdjec niskiej jakosci, wprost pod usuwanie uszkodzen ze skanow.
 #   - LoRA "Add Detail - Slider" z Civitai (link podany przez uzytkownika,
 #     spodobal mu sie) - naprawa/wzmacnianie szczegolow.
+#   - Qwen3-4B-abliterated (Text LLM, sierpien 2026, na wyrazna prosbe
+#     uzytkownika) - NIE generuje obrazow, tylko zasila wbudowana w InvokeAI
+#     6.14.0 funkcje "Expand Prompt" (przycisk ze skrami w polu promptu,
+#     patrz docs/features/prompt-tools.md w zrodle InvokeAI). Rozwiazuje
+#     dwa problemy naraz: (1) Cyber (SDXL/CLIP) preferuje prompty w stylu
+#     tagow z wagami, nie pelne zdania - Qwen moze to sam wygenerowac z
+#     krotkiego opisu, (2) sam model obrazu (CLIP) nie rozumie polskiego -
+#     Qwen3 oficjalnie wspiera 119+ jezykow (w tym polski), wiec moze
+#     PRZETLUMACZYC polski opis na angielski PRZED wygenerowaniem promptu
+#     z tagami. Wymaga wlasnego, edytowalnego w UI "System Prompt" (patrz
+#     rozmowa/PR) - domyslny system prompt InvokeAI nie tlumaczy sam z
+#     siebie, tylko rozwija tekst w tym samym jezyku, w ktorym go dostal.
+#     Wariant "abliterated" (usunieta odmowa odpowiedzi) wybrany celowo -
+#     zwykly Qwen3-Instruct czasem odmawia rozwijania opisow z tresciami
+#     dla doroslych, co zablokowaloby to narzedzie akurat tam, gdzie jest
+#     najbardziej potrzebne (checkpointy NSFW w tym projekcie).
 #
 # Idempotentne: kazdy element pomijany, jesli juz istnieje na dysku (np. po
 # restarcie na tym samym Container Disk / Network Volume) - nie pobiera sie
@@ -136,13 +152,14 @@ fi
 # invokeai.yaml ma scan_models_on_startup: true, ktory skanuje modele
 # TYLKO RAZ, przy starcie - pobieranie w tle rownolegle z InvokeAI
 # konczyloby sie czescia modeli niezarejestrowanych do nastepnego restartu.
-log_elapsed "=== [3/4] Dodatkowe modele (VAE/IP-Adapter/ControlNet/SwinIR/LoRA) ==="
+log_elapsed "=== [3/4] Dodatkowe modele (VAE/IP-Adapter/ControlNet/SwinIR/LoRA/Text LLM) ==="
 mkdir -p /workspace/invokeai/root/models/sdxl/vae \
          /workspace/invokeai/root/models/any/clip_vision \
          /workspace/invokeai/root/models/sdxl/controlnet \
          /workspace/invokeai/root/models/sdxl/ip_adapter \
          /workspace/invokeai/root/models/any/upscale \
-         /workspace/invokeai/root/models/sdxl/lora
+         /workspace/invokeai/root/models/sdxl/lora \
+         /workspace/invokeai/root/models/any/text_llm
 
 if /workspace/invokeai/.venv/bin/python << 'PYEOF'
 import os
@@ -155,6 +172,7 @@ repos = {
     'diffusers/controlnet-depth-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-depth-sdxl-1.0',
     'xinsir/controlnet-openpose-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-openpose-sdxl-1.0',
     'xinsir/controlnet-tile-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-tile-sdxl-1.0',
+    'huihui-ai/Qwen3-4B-abliterated': '/workspace/invokeai/root/models/any/text_llm/qwen3-4b-abliterated',
 }
 ok = True
 for repo_id, dest in repos.items():
@@ -170,9 +188,9 @@ for repo_id, dest in repos.items():
 raise SystemExit(0 if ok else 1)
 PYEOF
 then
-    echo "OK: VAE/Image Encoder/ControlNet (canny/depth/openpose/tile) gotowe."
+    echo "OK: VAE/Image Encoder/ControlNet (canny/depth/openpose/tile)/Text LLM gotowe."
 else
-    echo "UWAGA: co najmniej jeden z VAE/Image Encoder/ControlNet nie pobral sie poprawnie - patrz log wyzej. Kontynuuje." >&2
+    echo "UWAGA: co najmniej jeden z VAE/Image Encoder/ControlNet/Text LLM nie pobral sie poprawnie - patrz log wyzej. Kontynuuje." >&2
 fi
 
 download_if_missing() {
