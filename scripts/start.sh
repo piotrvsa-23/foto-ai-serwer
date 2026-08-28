@@ -165,10 +165,24 @@ mkdir -p /workspace/invokeai/root/models/flux/main \
 # NIE dotyczy naszych wlasnych, reczych wywolan curl - trzeba dolozyc
 # naglowek Authorization jawnie. Dotyczy TYLKO URL-i z huggingface.co (nie
 # np. SwinIR z github.com, gdzie token HF nie ma zastosowania).
+# POPRAWKA (28.08.2026, po realnym tescie na RunPod): sam naglowek
+# Authorization NIE WYSTARCZYL - checkpoint dalej pobieral sie z throttlingiem
+# (~1%/5min) MIMO ustawionego tokenu. Przyczyna: duze pliki HuggingFace
+# (system Xet) sa serwowane przez /resolve/main/... na huggingface.co, ktory
+# odpowiada przekierowaniem (307) na ZUPELNIE INNY HOST (np.
+# us.aws.cdn.hf.co/xet-bridge-us/... lub cdn-lfs*.huggingface.co). curl -L
+# domyslnie (od 7.58.0, naprawa CVE-2018-1000007) USUWA naglowek Authorization
+# przy przekierowaniu na inny host - wiec token byl wysylany tylko do
+# pierwszego, "pustego" zapytania na huggingface.co, a samo pobieranie pliku
+# (na CDN-owym hoscie) zawsze lecialo bez tokenu, stad throttling mimo
+# pozornie poprawnej konfiguracji. --location-trusted wymusza wyslanie
+# naglowka takze po zmianie hosta - bezpieczne tu, bo docelowy host to zawsze
+# infrastruktura CDN kontrolowana przez samo HuggingFace, nie przypadkowa
+# trzecia strona.
 hf_curl_auth_args() {
     local url="$1"
     if [[ "$url" == *"huggingface.co"* ]] && [ -n "${HUGGINGFACE_TOKEN:-}" ]; then
-        printf '%s\0%s\0' "-H" "Authorization: Bearer ${HUGGINGFACE_TOKEN}"
+        printf '%s\0%s\0%s\0' "--location-trusted" "-H" "Authorization: Bearer ${HUGGINGFACE_TOKEN}"
     fi
 }
 

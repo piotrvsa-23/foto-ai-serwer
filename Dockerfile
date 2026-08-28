@@ -172,6 +172,19 @@ print('torch cuda (build):', torch.version.cuda)" \
 # sekcja "v6.14.0_v01" wyzej, identyczny objaw z CyberRealisticXL). Naprawa:
 # checkpoint wrocil do zwyklego curl (scripts/start.sh [3/4], razem z
 # VAE/IP-Adapter/SwinIR) - dziala niezawodnie dla pojedynczych plikow.
+#
+# POPRAWKA v03 (28.08.2026): naglowek "Authorization: Bearer $HUGGINGFACE_
+# TOKEN" dodany w poprzedniej poprawce dalej NIE eliminowal throttlingu
+# (realny test: ~1% w 5 min). Przyczyna dogrzebana do konca: /resolve/main/
+# na huggingface.co dla tego pliku (Xet) odpowiada przekierowaniem 307 na
+# INNY HOST (us.aws.cdn.hf.co / cdn-lfs*.huggingface.co) - a curl -L domyslnie
+# (od wersji 7.58.0, naprawa CVE-2018-1000007) USUWA Authorization przy
+# przekierowaniu miedzy hostami. Token trafial wiec tylko do pierwszego,
+# przekierowujacego zapytania - samo pobieranie pliku zawsze lecialo bez
+# autoryzacji. Naprawiono w scripts/start.sh (hf_curl_auth_args) przez
+# dodanie --location-trusted, ktore wymusza zachowanie naglowka po zmianie
+# hosta - bezpieczne, bo docelowy host to zawsze infrastruktura CDN samego
+# HuggingFace, nie przypadkowa trzecia strona.
 # ==============================================================================
 
 # Dodatkowe modele (glowny checkpoint GGUF, VAE, T5/CLIP encodery, IP-Adapter,
