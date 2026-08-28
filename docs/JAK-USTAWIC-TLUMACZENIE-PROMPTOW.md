@@ -13,11 +13,19 @@ Dotyczy dwóch obrazów z tego repo:
 
 - **`flux.1_v02`** (branch `flux-v01`) — model LLM trzeba zainstalować
   ręcznie, jednorazowo (patrz Część A).
-- **`v6.14.0_v05_CyberRXL_v10`** (branch główny) — model LLM **jest już
+- **`v6.14.0_v06_CyberRXL_v10`** (branch główny) — model LLM **jest już
   pobierany automatycznie** przy starcie poda, trzeba tylko skonfigurować
   System Prompt (patrz Część B, pomiń instalację modelu).
 
-Model LLM (Qwen3-4B-abliterated) **nie generuje obrazów** — tylko
+> **Uwaga (28.08.2026):** wersja `v05` używała modelu
+> `huihui-ai/Qwen3-4B-abliterated`, który okazał się repo **gated** na
+> HuggingFace (błąd 401/403 "not in authorized list") — automatyczne
+> pobieranie zawsze kończyło się błędem, niezależnie od tokenu HF. Wersja
+> `v06` naprawia to, używając zweryfikowanego (HTTP 200, publiczny) modelu
+> `huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated`. Jeśli używasz
+> starszego poda z `v05`, zaktualizuj obraz do `v06`.
+
+Model LLM (Huihui-Qwen3-4B-Instruct-2507-abliterated) **nie generuje obrazów** — tylko
 przepisuje/tłumaczy tekst promptu, zanim trafi do silnika obrazu (FLUX lub
 SDXL). Wybrany celowo w wariancie "abliterated" (bez wbudowanej odmowy
 odpowiedzi), żeby nie blokował się na opisach dla dorosłych — a to właśnie
@@ -42,7 +50,7 @@ W tym obrazie model LLM **nie jest pobierany automatycznie** — trzeba go
 dodać ręcznie, raz na pod (zostaje na dysku poda, dopóki go nie usuniesz
 albo nie stworzysz zupełnie nowego poda).
 
-### A1. Zainstaluj model LLM (Qwen3-4B-abliterated)
+### A1. Zainstaluj model LLM (Huihui-Qwen3-4B-Instruct-2507-abliterated)
 
 1. W lewym pasku bocznym InvokeAI kliknij ikonę **Models** (wygląda jak
    stos/szufladka kwadratów).
@@ -52,7 +60,7 @@ albo nie stworzysz zupełnie nowego poda).
    HuggingFace).
 4. W polu tekstowym **"Hugging Face Repo ID"** wklej dokładnie:
    ```
-   huihui-ai/Qwen3-4B-abliterated
+   huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated
    ```
 5. Kliknij przycisk **"Install Repo"** obok pola.
 6. Na dole ekranu, w sekcji **"Model Install Queue"**, pojawi się nowa
@@ -93,7 +101,7 @@ nie trzeba jej powtarzać przy każdej generacji (tylko przy nowym podzie).
 
 ---
 
-## Część B: Model LLM dla CyberRealisticXL (obraz `v6.14.0_v05_CyberRXL_v10`)
+## Część B: Model LLM dla CyberRealisticXL (obraz `v6.14.0_v06_CyberRXL_v10`)
 
 W tym obrazie model LLM **jest już pobierany automatycznie** przez
 `start.sh` razem z resztą dodatków (VAE, ControlNet, IP-Adapter, LoRA) —
@@ -109,7 +117,7 @@ W tym obrazie model LLM **jest już pobierany automatycznie** przez
 4. Jeśli sekcji nie ma (np. sprawdzasz od razu po starcie, zanim
    pobieranie dodatków się skończyło) — poczekaj kilka minut i odśwież
    stronę, albo doinstaluj ręcznie tak jak w kroku A1 (ten sam Repo ID:
-   `huihui-ai/Qwen3-4B-abliterated`).
+   `huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated`).
 
 ### B2. Ustaw System Prompt dla CyberRealisticXL (tagi/wagi SDXL)
 
@@ -157,7 +165,7 @@ Powtórz kroki **A2 (1–6, 9–10)** z tą różnicą, że w kroku 7-8 wpisz:
 
 **Repo ID modelu LLM (instalacja ręczna, tylko FLUX.1 / obraz `flux.1_v02`):**
 ```
-huihui-ai/Qwen3-4B-abliterated
+huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated
 ```
 
 **System Prompt — FLUX.1 (opis naturalny):**

@@ -141,6 +141,14 @@ fi
 #     zwykly Qwen3-Instruct czasem odmawia rozwijania opisow z tresciami
 #     dla doroslych, co zablokowaloby to narzedzie akurat tam, gdzie jest
 #     najbardziej potrzebne (checkpointy NSFW w tym projekcie).
+#     POPRAWKA (28.08.2026): 'huihui-ai/Qwen3-4B-abliterated' okazal sie
+#     repo GATED na HuggingFace (401/403 "not in authorized list") -
+#     potwierdzone w realnych logach RunPod (dwa niezalezne uruchomienia,
+#     z tokenem HF i bez). Zweryfikowano bezposrednio przez HEAD request
+#     (GitHub Actions check-url.yml), ze 'huihui-ai/Qwen3-8B-abliterated'
+#     rowniez jest gated (401), a 'huihui-ai/Huihui-Qwen3-4B-Instruct-2507-
+#     abliterated' (ten sam autor/rodzina, wariant Instruct-2507) zwraca
+#     HTTP 200 - publiczny, bez logowania. Podmieniono na ten model.
 #
 # Idempotentne: kazdy element pomijany, jesli juz istnieje na dysku (np. po
 # restarcie na tym samym Container Disk / Network Volume) - nie pobiera sie
@@ -172,7 +180,7 @@ repos = {
     'diffusers/controlnet-depth-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-depth-sdxl-1.0',
     'xinsir/controlnet-openpose-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-openpose-sdxl-1.0',
     'xinsir/controlnet-tile-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-tile-sdxl-1.0',
-    'huihui-ai/Qwen3-4B-abliterated': '/workspace/invokeai/root/models/any/text_llm/qwen3-4b-abliterated',
+    'huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated': '/workspace/invokeai/root/models/any/text_llm/qwen3-4b-abliterated',
 }
 ok = True
 for repo_id, dest in repos.items():

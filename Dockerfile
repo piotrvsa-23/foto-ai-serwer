@@ -181,6 +181,18 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
 # to czysty dodatek do warsztatu promptowania.
 # ==============================================================================
 
+# ==============================================================================
+# v6.14.0_v06_CyberRXL_v10 (sierpien 2026) — POPRAWKA: 'huihui-ai/Qwen3-4B-
+# abliterated' (dodany w v05) okazal sie repo GATED na HuggingFace (401/403
+# "not in authorized list"), co potwierdzily dwa niezalezne, realne logi
+# RunPod (z tokenem HF i bez) - Text LLM dla "Expand Prompt" nigdy sie nie
+# instalowal. Zweryfikowano bezposrednio przez HEAD request (nie zgadywanie),
+# ze zastepczy model 'huihui-ai/Huihui-Qwen3-4B-Instruct-2507-abliterated'
+# (ten sam autor/rodzina, wariant Instruct-2507) zwraca HTTP 200 - publiczny.
+# Podmieniono repo_id w scripts/start.sh. Zaden checkpoint obrazu sie nie
+# zmienia.
+# ==============================================================================
+
 # invokeai.yaml zaszyty w obrazie z jednym kluczowym ustawieniem:
 # scan_models_on_startup: true. Bez tego zaszyty wyzej plik .safetensors
 # lezalby w folderze modeli, ale InvokeAI NIGDY by go sam nie "zobaczyl" w UI
