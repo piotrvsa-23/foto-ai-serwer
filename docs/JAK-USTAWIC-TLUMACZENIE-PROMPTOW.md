@@ -13,7 +13,7 @@ Dotyczy dwóch obrazów z tego repo:
 
 - **`flux.1_v02`** (branch `flux-v01`) — model LLM trzeba zainstalować
   ręcznie, jednorazowo (patrz Część A).
-- **`v6.14.0_v06_CyberRXL_v10`** (branch główny) — model LLM **jest już
+- **`CyberRXL10_v06`** (branch główny) — model LLM **jest już
   pobierany automatycznie** przy starcie poda, trzeba tylko skonfigurować
   System Prompt (patrz Część B, pomiń instalację modelu).
 
@@ -101,7 +101,7 @@ nie trzeba jej powtarzać przy każdej generacji (tylko przy nowym podzie).
 
 ---
 
-## Część B: Model LLM dla CyberRealisticXL (obraz `v6.14.0_v06_CyberRXL_v10`)
+## Część B: Model LLM dla CyberRealisticXL (obraz `CyberRXL10_v06`)
 
 W tym obrazie model LLM **jest już pobierany automatycznie** przez
 `start.sh` razem z resztą dodatków (VAE, ControlNet, IP-Adapter, LoRA) —

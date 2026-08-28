@@ -196,7 +196,7 @@ RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
 # ==============================================================================
 
 # ==============================================================================
-# v6.14.0_v06_CyberRXL_v10 (sierpien 2026) — POPRAWKA: 'huihui-ai/Qwen3-4B-
+# CyberRXL10_v06 (sierpien 2026) — POPRAWKA: 'huihui-ai/Qwen3-4B-
 # abliterated' (dodany w v05) okazal sie repo GATED na HuggingFace (401/403
 # "not in authorized list"), co potwierdzily dwa niezalezne, realne logi
 # RunPod (z tokenem HF i bez) - Text LLM dla "Expand Prompt" nigdy sie nie
