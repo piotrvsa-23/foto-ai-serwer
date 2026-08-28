@@ -110,13 +110,16 @@ fi
 
 # DODATKOWE MODELE FLUX (sierpien 2026) - odpowiednik zestawu z v04, ale
 # dobrany pod architekture FLUX (kompletnie inna od SDXL - zaden z plikow
-# SDXL z v04 nie jest tu zamiennikiem). Ten krok pobiera TYLKO elementy,
-# ktore realny test na RunPod potwierdzil jako poprawnie rozpoznawane przez
-# automatyczny skaner InvokeAI (scan_models_on_startup) - VAE, CLIP-L text
-# encoder, CLIP ViT-L image encoder, IP-Adapter, ControlNet Union, SwinIR.
-# Glowny checkpoint I T5-XXL int8 (ktory w tym samym tescie skaner
+# SDXL z v04 nie jest tu zamiennikiem). Ten krok pobiera GLOWNY CHECKPOINT
+# (zwyklym curl - patrz uzasadnienie Xet przy download_if_missing nizej) i
+# wszystkie elementy, ktore realny test na RunPod potwierdzil jako poprawnie
+# rozpoznawane przez automatyczny skaner InvokeAI (scan_models_on_startup) -
+# VAE, CLIP-L text encoder, CLIP ViT-L image encoder, IP-Adapter, ControlNet
+# Union, SwinIR. Jedynie T5-XXL int8 (ktory w tym samym tescie skaner
 # zarejestrowal Zle - patrz [4/4] nizej) instaluje sie oddzielnie, przez
 # wlasne REST API InvokeAI, nie przez ten mechanizm.
+#   - Checkpoint (Flux Unchained GGUF Q8_0) - patrz szczegolowe uzasadnienie
+#     formatu/wyboru w naglowku Dockerfile.
 #   - VAE (ae.safetensors) - TWARDA ZALEZNOSC (FLUX bez VAE nie zdekoduje
 #     obrazu z latentow). Zrodlo: ffxvs/vae-flux, NIE oficjalne
 #     black-forest-labs/FLUX.1-schnell - UWAGA (naprawa realnego bledu z tego
@@ -126,7 +129,7 @@ fi
 #     "Napraw 401 dla VAE Flux"). ffxvs/vae-flux to sprawdzony, dzialajacy
 #     bez logowania community-mirror identycznego pliku ae.safetensors.
 #   - CLIP ViT-L Image Encoder (InvokeAI/clip-vit-large-patch14, INNY plik niz
-#     CLIP-L text encoder instalowany w [4/4]) - zaleznosc IP-Adaptera FLUX.
+#     CLIP-L text encoder instalowany nizej) - zaleznosc IP-Adaptera FLUX.
 #   - IP-Adapter FLUX (XLabs) - generowanie/inpaint z obrazem referencyjnym,
 #     odpowiednik IP-Adapterow SDXL z v04.
 #   - ControlNet Union FLUX (InstantX) - JEDEN model obslugujacy 7 trybow
@@ -143,8 +146,9 @@ fi
 # Idempotentne + odporne na bledy - ten sam wzorzec co v04 (i tokeny wyzej):
 # nieudane pobranie JEDNEGO elementu tylko wypisuje UWAGA i skrypt leci
 # dalej, nigdy nie blokuje calego startu poda.
-log_elapsed "=== [3/4] Dodatkowe modele FLUX (VAE/CLIP/IP-Adapter/ControlNet/SwinIR) ==="
-mkdir -p /workspace/invokeai/root/models/flux/vae \
+log_elapsed "=== [3/4] Dodatkowe modele FLUX (checkpoint/VAE/CLIP/IP-Adapter/ControlNet/SwinIR) ==="
+mkdir -p /workspace/invokeai/root/models/flux/main \
+         /workspace/invokeai/root/models/flux/vae \
          /workspace/invokeai/root/models/any/t5_encoder \
          /workspace/invokeai/root/models/any/clip_embed \
          /workspace/invokeai/root/models/any/clip_vision \
@@ -153,18 +157,44 @@ mkdir -p /workspace/invokeai/root/models/flux/vae \
          /workspace/invokeai/root/models/any/upscale
 
 download_if_missing() {
-    local dest="$1" url="$2"
+    local dest="$1" url="$2" max_time="${3:-900}"
     if [ -s "$dest" ]; then
         echo "(pomijam - juz pobrane) $(basename "$dest")"
         return 0
     fi
-    if curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
+    if curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time "$max_time" \
             -o "$dest" "$url"; then
         echo "OK: $(basename "$dest")"
     else
         echo "UWAGA: nie udalo sie pobrac $(basename "$dest") - kontynuuje bez niego." >&2
     fi
 }
+
+# GLOWNY CHECKPOINT (Flux Unchained, GGUF Q8_0, ~12.7GB) - zwykly curl, NIE
+# REST API InvokeAI (naprawa po realnym niepowodzeniu na RunPod, sierpien
+# 2026): pierwsza wersja tego kroku zlecala pobranie przez wewnetrzny
+# downloader InvokeAI (POST /api/v2/models/install z URL jako zrodlem).
+# Test na RunPod pokazal, ze ten downloader "wisi" bez pobrania zadnego
+# bajtu dla tego pliku - Model Manager pokazywal 0 postepu po >15 minutach,
+# a zuzycie dysku poda nie roslo. Przyczyna: ten plik jest skladowany przez
+# HuggingFace w systemie "Xet" (potwierdzone - URL przekierowuje przez
+# us.aws.cdn.hf.co/xet-bridge-us/...) - DOKLADNIE ten sam problem, ktory
+# mielismy wczesniej z CyberRealisticXL w v01/v04 (patrz Dockerfile,
+# sekcja "v6.14.0_v01": "wielokrotne zawieszki bez ani jednego pobranego
+# bajtu... plik jest skladowany przez HuggingFace w systemie Xet"), i ktory
+# wtedy naprawiono dokladnie tym samym sposobem - zwyklym curl na koncowce
+# resolve/main zamiast mechanizmu HuggingFace (Xet dziala poprawnie przez
+# zwykle przekierowanie HTTP, ale najwyrazniej nie przez wewnetrzne
+# downloadery HuggingFace/InvokeAI). Pojedynczy plik (nie folder z
+# podfolderami jak T5 nizej), wiec nie ma ryzyka bledu zagniezdzenia -
+# scan_models_on_startup rejestruje pojedyncze pliki checkpointow niezawodnie
+# (potwierdzone dla CyberRealisticXL od v01).
+# max-time podniesiony do 30 minut (zamiast domyslnych 15) - plik ma ~12.7GB,
+# przy wolniejszym laczu domyslny limit moglby przerwac pobieranie w polowie.
+download_if_missing \
+    "/workspace/invokeai/root/models/flux/main/fluxunchained-dev-q8-0-v2.gguf" \
+    "https://huggingface.co/GraydientPlatformAPI/flux-unchained/resolve/main/fluxunchained-dev-q8-0-v2.gguf" \
+    1800
 
 download_if_missing \
     "/workspace/invokeai/root/models/flux/vae/ae.safetensors" \
@@ -231,32 +261,34 @@ else
     echo "UWAGA: co najmniej jeden z CLIP-L/CLIP ViT-L/ControlNet Union nie pobral sie poprawnie - patrz log wyzej. Kontynuuje." >&2
 fi
 
-# [4/4] GLOWNY CHECKPOINT (Flux Unchained GGUF Q8_0) + T5-XXL int8 - PRZEZ
-# WLASNE REST API INVOKEAI, nie recznym kopiowaniem plikow (sierpien 2026,
-# naprawa po realnym niepowodzeniu na RunPod):
+# [4/4] T5-XXL int8 - PRZEZ WLASNE REST API INVOKEAI, nie recznym
+# kopiowaniem plikow (sierpien 2026, naprawa po realnym niepowodzeniu na
+# RunPod):
 #
 # Historia problemu: pierwsza wersja tego skryptu probowala, tak jak dla
-# VAE/CLIP/ControlNet wyzej, recznie pobrac T5-XXL int8
+# VAE/CLIP/ControlNet w [3/4], recznie pobrac T5-XXL int8
 # (huggingface_hub.snapshot_download + splaszczenie folderu) i podlozyc pod
 # scan_models_on_startup. Na dysku struktura wyszla poprawna, ale
 # automatyczny skaner InvokeAI zarejestrowal WEWNETRZNY podfolder
 # (".../text_encoder_2") jako korzen modelu zamiast folderu-rodzica, ktorego
 # oczekuje klasa T5Encoder_BnBLLMint8_Config (ktora zawsze doklada WLASNY,
 # dodatkowy segment "text_encoder_2/config.json" do przekazanej sciezki) -
-# w efekcie model ladowal sie jako "Unknown", bezuzyteczny. Ten sam problem
-# dotyczylby kazdego glownego checkpointu, ktorego dokladny oczekiwany uklad
-# folderow nie jest 100% pewny (co dotyczy kazdego formatu GGUF - patrz
-# uzasadnienie wyboru modelu w Dockerfile).
+# w efekcie model ladowal sie jako "Unknown", bezuzyteczny.
 #
 # Zamiast zgadywac uklad folderow, ten krok startuje InvokeAI W TLE i uzywa
 # JEGO WLASNEGO, oficjalnego REST API (POST /api/v2/models/install) do
-# zlecenia instalacji obu modeli ze zrodel identycznych z tymi, ktorych
-# InvokeAI uzywa we wlasnych "starter models" (starter_models.py) - to
-# DOKLADNIE ten sam mechanizm, co reczne dodanie modelu przez
-# Model Manager -> Add Model -> HuggingFace Repo ID w interfejsie InvokeAI,
-# wiec caly, czesto niejawny kod ustalania poprawnej struktury folderow i
-# typu modelu wykonuje sam InvokeAI, a nie nasza reimplementacja.
-log_elapsed "=== [4/4] Checkpoint FLUX Unchained (GGUF Q8_0) + T5-XXL int8 przez REST API InvokeAI, potem start (port 9090) ==="
+# zlecenia instalacji ze zrodla identycznego z tym, ktorego InvokeAI uzywa
+# we wlasnych "starter models" (starter_models.py) - to DOKLADNIE ten sam
+# mechanizm, co reczne dodanie modelu przez Model Manager -> Add Model ->
+# HuggingFace Repo ID w interfejsie InvokeAI.
+#
+# UWAGA: GLOWNY CHECKPOINT (GGUF) celowo NIE jest juz instalowany tym
+# mechanizmem (byl tu wczesniej, razem z T5) - realny test na RunPod
+# pokazal, ze wewnetrzny downloader InvokeAI wisi bez pobrania zadnego
+# bajtu dla plikow skladowanych w systemie Xet (patrz szczegoly przy
+# download_if_missing w [3/4] wyzej, gdzie checkpoint jest teraz pobierany
+# zwyklym curl).
+log_elapsed "=== [4/4] T5-XXL int8 przez REST API InvokeAI, potem start (port 9090) ==="
 export INVOKEAI_HOST=0.0.0.0
 export INVOKEAI_PORT=9090
 
@@ -274,7 +306,7 @@ for _ in $(seq 1 90); do
 done
 
 if [ "$API_READY" -eq 1 ]; then
-    echo "OK: API gotowe. Zlecam instalacje checkpointu i T5-XXL int8..."
+    echo "OK: API gotowe. Zlecam instalacje T5-XXL int8..."
     /workspace/invokeai/.venv/bin/python << 'PYEOF'
 import json
 import time
@@ -283,7 +315,6 @@ import urllib.request
 
 API = "http://127.0.0.1:9090/api/v2/models"
 SOURCES = [
-    "https://huggingface.co/GraydientPlatformAPI/flux-unchained/resolve/main/fluxunchained-dev-q8-0-v2.gguf",
     "InvokeAI/t5-v1_1-xxl::bnb_llm_int8",
 ]
 
@@ -308,12 +339,16 @@ for source in SOURCES:
     else:
         print(f"POMINIETO (blad zlecenia): {source}")
 
-# Duze pliki (checkpoint ~12.7GB, T5 int8 ~5GB) - dajemy do 25 minut zanim
-# przestajemy czekac i oddajemy stery InvokeAI (instalacja i tak dokonczy
-# sie w tle, tylko nie zobaczymy tu jej wyniku).
+# T5 int8 ma ~5GB - dajemy do 10 minut zanim przestajemy czekac i oddajemy
+# stery InvokeAI (instalacja i tak dokonczy sie w tle, tylko nie zobaczymy
+# tu jej wyniku). Co ok. 30s wypisujemy status kazdego wciaz trwajacego joba
+# (nie tylko po zakonczeniu) - zeby bylo widac w logu, ze cos sie faktycznie
+# dzieje, a nie ze skrypt "wisi" bez zadnej informacji (realny problem z
+# poprzedniej wersji tego kroku, kiedy instalowal tez duzy checkpoint).
 terminal_statuses = {"completed", "error", "cancelled"}
-deadline = time.time() + 1500
+deadline = time.time() + 600
 pending = set(job_ids)
+last_progress_print = 0.0
 while pending and time.time() < deadline:
     time.sleep(10)
     try:
@@ -328,14 +363,20 @@ while pending and time.time() < deadline:
         if job is not None and job.get("status") in terminal_statuses:
             print(f"Job {jid} ({job.get('source')}): {job.get('status')}")
             pending.discard(jid)
+    if pending and time.time() - last_progress_print > 30:
+        for jid in pending:
+            job = by_id.get(jid)
+            status = job.get("status") if job else "brak danych"
+            print(f"  ... wciaz trwa: job {jid} ({status})")
+        last_progress_print = time.time()
 
 if pending:
     print(f"UWAGA: instalacja nie zdazyla sie zakonczyc w limicie czasu (joby: {sorted(pending)}) - InvokeAI dokonczy ja w tle, moze byc niedostepna od razu po starcie.")
 else:
-    print("OK: checkpoint FLUX Unchained i T5-XXL int8 zainstalowane.")
+    print("OK: T5-XXL int8 zainstalowany.")
 PYEOF
 else
-    echo "UWAGA: REST API InvokeAI nie odpowiedzialo w 3 minuty - pomijam automatyczna instalacje checkpointu/T5, dociagnij je recznie przez Model Manager." >&2
+    echo "UWAGA: REST API InvokeAI nie odpowiedzialo w 3 minuty - pomijam automatyczna instalacje T5, dociagnij ja recznie przez Model Manager." >&2
 fi
 
 echo "Instalacja zlecona/zakonczona - InvokeAI dziala dalej w tle (port 9090)."

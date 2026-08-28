@@ -163,6 +163,15 @@ print('torch cuda (build):', torch.version.cuda)" \
 # claude/foto-ai-runpod-setup-zzw2vi): CI GitHub Actions ma za malo miejsca
 # na dysku na duze pliki (potwierdzone realnym bledem "no space left on
 # device" przy probie v03), a 12.7GB to jeszcze wiecej niz to, co tam padlo.
+#
+# POPRAWKA (sierpien 2026, po kolejnym realnym tescie na RunPod): checkpoint
+# byl pierwotnie instalowany przez wewnetrzny downloader InvokeAI (REST API,
+# tak jak T5 - patrz scripts/start.sh [4/4]), ale ten downloader wisial bez
+# pobrania zadnego bajtu - plik jest skladowany przez HuggingFace w systemie
+# "Xet", ktory ma udokumentowana historie problemow w tym projekcie (patrz
+# sekcja "v6.14.0_v01" wyzej, identyczny objaw z CyberRealisticXL). Naprawa:
+# checkpoint wrocil do zwyklego curl (scripts/start.sh [3/4], razem z
+# VAE/IP-Adapter/SwinIR) - dziala niezawodnie dla pojedynczych plikow.
 # ==============================================================================
 
 # Dodatkowe modele (glowny checkpoint GGUF, VAE, T5/CLIP encodery, IP-Adapter,
