@@ -134,8 +134,22 @@ print('torch cuda (build):', torch.version.cuda)" \
 # SHA256 z oficjalnej strony pliku na HuggingFace (Xet Pointer Details) -
 # build PADNIE, jesli pobrany plik nie zgadza sie z tym hashem (ochrona przed
 # cichym zaszyciem uciete/uszkodzonej kopii modelu w obrazie).
+#
+# POPRAWKA (28.08.2026, po realnym bledzie w CI): build padl na "curl: (92)
+# HTTP/2 stream 0 was not closed cleanly: CANCEL" w polowie pobierania (po
+# ~115MB z 6.6GB, przy spadajacej predkosci - throttling runnera GitHub
+# Actions). Mimo ustawionego "--retry 3", curl NIE ponowil proby - domyslna
+# klasyfikacja "bledow przejsciowych" w --retry obejmuje typowe bledy
+# transportu/HTTP (timeout, 5xx), ale NIE bledy specyficzne dla strumieni
+# HTTP/2 (kod 92) - potrzeba jawnie "--retry-all-errors" (curl >=7.71), zeby
+# ten konkretny typ bledu w ogole kwalifikowal sie do ponowienia. Dodatkowo
+# "-C -" pozwala wznowic pobieranie od miejsca przerwania zamiast zaczynac
+# 6.6GB od zera przy kazdej probie, a "--http1.1" unika w ogole warstwy
+# HTTP/2 (i jej resetow strumieni) dla tego pojedynczego, sekwencyjnego
+# pobrania, gdzie multipleksowanie HTTP/2 i tak nie daje zadnej korzysci.
 RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
-    && curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
+    && curl -L --http1.1 --fail --retry 5 --retry-all-errors --retry-delay 5 -C - \
+        --connect-timeout 15 --max-time 1800 \
         -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
         -o /workspace/invokeai/root/models/sdxl/main/CyberRealisticXLPlay_V10.0_FP16.safetensors \
         "https://huggingface.co/cyberdelia/CyberRealisticXL/resolve/main/CyberRealisticXLPlay_V10.0_FP16.safetensors" \
