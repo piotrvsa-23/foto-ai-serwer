@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Skrypt startowy poda - v6.14.0_v04_CyberRXL_v10, wariant TYLKO InvokeAI:
+# Skrypt startowy poda - flux.1_v01, wariant TYLKO InvokeAI (galaz rownolegla
+# do glownej galezi, oparta o wzorzec v6.14.0_v04_CyberRXL_v10, ale z
+# checkpointem FLUX.1-dev zamiast SDXL - patrz naglowek Dockerfile):
 # 1. Tworzy strukture folderow na Container Disk.
 # 2. Jesli ustawione - automatycznie konfiguruje tokeny HuggingFace/Civitai
-#    (patrz sekcja "TOKENY" nizej).
-# 3. Automatycznie pobiera dodatkowe modele/LoRA (poza checkpointem
+#    (patrz sekcja "TOKENY" nizej) - dla tego wariantu opcjonalne, zadne
+#    ze zrodel ponizej nie sa gated, ale zostaje dla spojnosci z v04 i na
+#    wypadek gdyby uzytkownik pozniej dodal tu gated model recznie.
+# 3. Automatycznie pobiera dodatkowe modele FLUX (poza checkpointem
 #    zaszytym w obrazie) - patrz sekcja "DODATKOWE MODELE" nizej.
 # 4. Uruchamia InvokeAI (pierwszy plan, port 9090).
 #
-# UWAGA (sierpien 2026, decyzja po nieudanych probach v03): dodatkowe modele
-# (VAE, IP-Adapter, ControlNety, SwinIR, LoRA z Civitai) CELOWO nie sa juz
-# zaszywane w obrazie Docker - proby zaszycia ich w GitHub Actions padaly
-# wielokrotnie na ograniczeniach/niestabilnosci CI (za malo miejsca na
-# dysku runnera, zawieszajace sie buildy), niezwiazanych z samymi plikami
-# modeli. RunPod ma duzo wiecej miejsca i stabilniejsze lacze, wiec te same
-# pobierania po prostu dzieja sie tu, przy starcie poda, zamiast przy
-# budowaniu obrazu w CI - uzytkownik nie musi juz recznie wklejac linkow
-# do Model Managera, dostaje gotowy zestaw automatycznie po kilku minutach.
+# UWAGA: dodatkowe modele CELOWO nie sa zaszywane w obrazie Docker - ten sam
+# powod co w v04 (proby zaszycia duzych plikow w GitHub Actions okazaly sie
+# zawodne/kruche - limity dysku runnera, zawieszajace sie buildy). RunPod ma
+# duzo wiecej miejsca i stabilniejsze lacze, wiec te same pobierania po
+# prostu dzieja sie tu, przy starcie poda.
 #
 # Nic tu nie aktualizuje InvokeAI - to zamrozone w obrazie
 # (koncepcja-i-zasady-budowy.md, pkt 4.1-4.2). Ten skrypt tylko tworzy
@@ -105,75 +105,56 @@ else
     echo "(pomijam - HUGGINGFACE_TOKEN nieustawiony)"
 fi
 
-# DODATKOWE MODELE (sierpien 2026, na wyrazna prosbe uzytkownika): zestaw
-# wybrany pod konkretne zastosowania (inpaint fragmentow, przebieranie
-# postaci z zachowaniem pozy, usuwanie uszkodzen ze skanow, naprawa/
-# generowanie szczegolow) - NIE caly "SDXL Starter Bundle" InvokeAI (12
-# pozycji), tylko podzbior faktycznie do tego przydatny:
-#   - VAE (sdxl-vae-fp16-fix) + IP-Adapter Image Encoder - zaleznosc obu
-#     ponizszych IP-Adapterow, bez niej nie dzialaja.
-#   - IP-Adapter Standard + Plus/Precise - generowanie/inpaint z obrazem
-#     referencyjnym.
-#   - ControlNet: canny, depth, openpose, tile - openpose do zachowania
-#     pozy przy zmianie stroju, tile do naprawy/dogenerowania szczegolow
-#     przy zachowaniu struktury (kluczowe przy renowacji skanow), depth do
-#     zachowania struktury 3D, canny jako uniwersalne uzupelnienie.
-#     POMINIETE swiadomie: scribble (generowanie z odrecznego szkicu - nie
-#     pasuje do zadnego z powyzszych zastosowan) i soft edge (duzy plik,
-#     w duzej mierze pokrywa sie z canny/tile).
-#   - SwinIR (upscaler BSRGAN) - dedykowany do odszumiania/naprawy
-#     zdjec niskiej jakosci, wprost pod usuwanie uszkodzen ze skanow.
-#   - LoRA "Add Detail - Slider" z Civitai (link podany przez uzytkownika,
-#     spodobal mu sie) - naprawa/wzmacnianie szczegolow.
+# DODATKOWE MODELE FLUX (sierpien 2026) - odpowiednik zestawu z v04, ale
+# dobrany pod architekture FLUX (kompletnie inna od SDXL - zaden z plikow
+# SDXL z v04 nie jest tu zamiennikiem):
+#   - VAE (ae.safetensors) + T5-XXL (int8) + CLIP-L - to NIE sa "dodatki"
+#     jak ControlNet/IP-Adapter w v04, tylko TWARDE ZALEZNOSCI: FLUX bez
+#     nich w ogole nie wygeneruje obrazu. Wersja T5 int8-quantized
+#     (bnb_llm_int8, nie pelne bfloat16 ~9.5GB) dobrana pod pare z
+#     checkpointem NF4 - dokladnie ten sam dobor, ktory InvokeAI stosuje
+#     wewnetrznie dla swojego wlasnego "FLUX.1 dev (quantized)" (sprawdzone
+#     w zrodle, starter_models.py, flux_dev_quantized.dependencies).
+#   - VAE z ffxvs/vae-flux, NIE z oficjalnego black-forest-labs/FLUX.1-schnell -
+#     UWAGA (naprawa realnego bledu z tego projektu, sierpien 2026): oficjalne
+#     repo BFL mimo deklarowanej licencji Apache 2.0 zwraca 401 Unauthorized
+#     bez zalogowania (potwierdzone recznie przez uzytkownika w przegladarce,
+#     patrz historia commitow - "Napraw 401 dla VAE Flux"). ffxvs/vae-flux to
+#     wtedy sprawdzony, dzialajacy bez logowania community-mirror identycznego
+#     pliku ae.safetensors.
+#   - CLIP ViT-L Image Encoder (InvokeAI/clip-vit-large-patch14, INNY plik niz
+#     CLIP-L text encoder wyzej) - zaleznosc IP-Adaptera FLUX ponizej.
+#   - IP-Adapter FLUX (XLabs) - generowanie/inpaint z obrazem referencyjnym,
+#     odpowiednik IP-Adapterow SDXL z v04.
+#   - ControlNet Union FLUX (InstantX) - JEDEN model obslugujacy 7 trybow
+#     (canny, tile, depth, blur, pose, gray, low quality) - pokrywa ta sama
+#     funkcjonalnosc co 4 osobne ControlNety SDXL w v04 (canny/depth/
+#     openpose/tile), tylko w jednym pliku (typowe dla ekosystemu FLUX).
+#   - SwinIR (ten sam plik co w v04) - upscaler dziala na obrazie
+#     pikselowym, nie na latentach, wiec jest identyczny niezaleznie od
+#     silnika (SDXL czy FLUX) - bez zmian wzgledem v04.
+#   - BRAK odpowiednika LoRA "Add Detail - Slider" z v04 - to byla LoRA
+#     wytrenowana pod SDXL, niekompatybilna architektonicznie z FLUX
+#     (inny ksztalt tensorow) - nie ma tu prostego zamiennika 1:1.
 #
-# Idempotentne: kazdy element pomijany, jesli juz istnieje na dysku (np. po
-# restarcie na tym samym Container Disk / Network Volume) - nie pobiera sie
-# ponownie bez potrzeby. Kazdy element opakowany w obsluge bledow (ten sam
-# wzorzec co tokeny wyzej) - nieudane pobranie JEDNEGO elementu (zerwane
-# lacze, tymczasowa niedostepnosc HuggingFace/Civitai) tylko wypisuje UWAGA
-# i skrypt leci dalej z reszta, nigdy nie blokuje calego startu poda.
-# Uruchamiane W PIERWSZYM PLANIE (przed startem InvokeAI, nie w tle) -
-# invokeai.yaml ma scan_models_on_startup: true, ktory skanuje modele
-# TYLKO RAZ, przy starcie - pobieranie w tle rownolegle z InvokeAI
-# konczyloby sie czescia modeli niezarejestrowanych do nastepnego restartu.
-log_elapsed "=== [3/4] Dodatkowe modele (VAE/IP-Adapter/ControlNet/SwinIR/LoRA) ==="
-mkdir -p /workspace/invokeai/root/models/sdxl/vae \
+# UWAGA (ryzyko, uczciwie odnotowane): checkpoint (Dockerfile) i ControlNet
+# Union to modele spolecznosciowe/nieoficjalne (nie z black-forest-labs ani
+# InvokeAI) - w przeciwienstwie do w pelni sprawdzonego zestawu v04, TEN
+# zestaw NIE MA JESZCZE potwierdzenia z realnego uruchomienia na RunPod.
+#
+# Idempotentne + odporne na bledy - ten sam wzorzec co v04 (i tokeny wyzej):
+# nieudane pobranie JEDNEGO elementu tylko wypisuje UWAGA i skrypt leci
+# dalej, nigdy nie blokuje calego startu poda. Uruchamiane W PIERWSZYM
+# PLANIE (przed startem InvokeAI) - invokeai.yaml ma scan_models_on_startup:
+# true, ktory skanuje modele TYLKO RAZ, przy starcie.
+log_elapsed "=== [3/4] Dodatkowe modele FLUX (VAE/T5/CLIP/IP-Adapter/ControlNet/SwinIR) ==="
+mkdir -p /workspace/invokeai/root/models/flux/vae \
+         /workspace/invokeai/root/models/any/t5_encoder \
+         /workspace/invokeai/root/models/any/clip_embed \
          /workspace/invokeai/root/models/any/clip_vision \
-         /workspace/invokeai/root/models/sdxl/controlnet \
-         /workspace/invokeai/root/models/sdxl/ip_adapter \
-         /workspace/invokeai/root/models/any/upscale \
-         /workspace/invokeai/root/models/sdxl/lora
-
-if /workspace/invokeai/.venv/bin/python << 'PYEOF'
-import os
-from huggingface_hub import snapshot_download
-
-repos = {
-    'madebyollin/sdxl-vae-fp16-fix': '/workspace/invokeai/root/models/sdxl/vae/sdxl-vae-fp16-fix',
-    'InvokeAI/ip_adapter_sdxl_image_encoder': '/workspace/invokeai/root/models/any/clip_vision/ip_adapter_sdxl_image_encoder',
-    'xinsir/controlnet-canny-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-canny-sdxl-1.0',
-    'diffusers/controlnet-depth-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-depth-sdxl-1.0',
-    'xinsir/controlnet-openpose-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-openpose-sdxl-1.0',
-    'xinsir/controlnet-tile-sdxl-1.0': '/workspace/invokeai/root/models/sdxl/controlnet/controlnet-tile-sdxl-1.0',
-}
-ok = True
-for repo_id, dest in repos.items():
-    if os.path.isdir(dest) and os.listdir(dest):
-        print(f'(pomijam - juz pobrane) {repo_id}')
-        continue
-    try:
-        print(f'--- pobieram {repo_id} -> {dest} ---')
-        snapshot_download(repo_id=repo_id, local_dir=dest)
-    except Exception as e:
-        print(f'UWAGA: nie udalo sie pobrac {repo_id}: {e}')
-        ok = False
-raise SystemExit(0 if ok else 1)
-PYEOF
-then
-    echo "OK: VAE/Image Encoder/ControlNet (canny/depth/openpose/tile) gotowe."
-else
-    echo "UWAGA: co najmniej jeden z VAE/Image Encoder/ControlNet nie pobral sie poprawnie - patrz log wyzej. Kontynuuje." >&2
-fi
+         /workspace/invokeai/root/models/flux/ip_adapter \
+         /workspace/invokeai/root/models/flux/controlnet \
+         /workspace/invokeai/root/models/any/upscale
 
 download_if_missing() {
     local dest="$1" url="$2"
@@ -190,35 +171,63 @@ download_if_missing() {
 }
 
 download_if_missing \
-    "/workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter_sdxl_vit-h.safetensors" \
-    "https://huggingface.co/InvokeAI/ip_adapter_sdxl_vit_h/resolve/main/ip-adapter_sdxl_vit-h.safetensors"
+    "/workspace/invokeai/root/models/flux/vae/ae.safetensors" \
+    "https://huggingface.co/ffxvs/vae-flux/resolve/main/ae.safetensors"
 
 download_if_missing \
-    "/workspace/invokeai/root/models/sdxl/ip_adapter/ip-adapter-plus_sdxl_vit-h.safetensors" \
-    "https://huggingface.co/InvokeAI/ip-adapter-plus_sdxl_vit-h/resolve/main/ip-adapter-plus_sdxl_vit-h.safetensors"
+    "/workspace/invokeai/root/models/flux/ip_adapter/ip_adapter.safetensors" \
+    "https://huggingface.co/XLabs-AI/flux-ip-adapter-v2/resolve/main/ip_adapter.safetensors"
 
 download_if_missing \
     "/workspace/invokeai/root/models/any/upscale/003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-L_x4_GAN-with-dict-keys-params-and-params_ema.pth" \
     "https://github.com/JingyunLiang/SwinIR/releases/download/v0.0/003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-L_x4_GAN-with-dict-keys-params-and-params_ema.pth"
 
-# LoRA z Civitai - wymaga tokenu (401 bez niego, potwierdzone realnym testem).
-# Pobierana TYLKO jesli CIVITAI_API_KEY jest ustawiony (ten sam token, ktory
-# krok [2/4] wyzej wpisuje juz do invokeai.yaml) - bez tokenu pomijana z
-# ostrzezeniem, nigdy nie blokuje startu.
-LORA_DEST="/workspace/invokeai/root/models/sdxl/lora/add-detail-slider_sdxl.safetensors"
-if [ -s "$LORA_DEST" ]; then
-    echo "(pomijam - juz pobrane) add-detail-slider_sdxl.safetensors"
-elif [ -n "${CIVITAI_API_KEY:-}" ]; then
-    if curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
-            -H "Authorization: Bearer ${CIVITAI_API_KEY}" \
-            -o "$LORA_DEST" \
-            "https://civitai.com/api/download/models/1506027?fileId=1406088"; then
-        echo "OK: LoRA Add Detail - Slider pobrana."
-    else
-        echo "UWAGA: nie udalo sie pobrac LoRA Add Detail - Slider z Civitai - kontynuuje bez niej." >&2
-    fi
+# T5-XXL/CLIP-L (::subfolder w oficjalnych repo InvokeAI) i foldery diffusers
+# (CLIP ViT-L image encoder, ControlNet Union) - snapshot_download zamiast
+# pojedynczego curl, ten sam mechanizm co bundle w historii tego projektu
+# (v03/v04). Dla wpisow "::subfolder" pobieramy tylko ten podfolder
+# (allow_patterns) i splaszczamy go do docelowego katalogu, bo InvokeAI
+# oczekuje plikow bezposrednio w folderze modelu, nie w zagniezdzonym
+# podfolderze.
+if /workspace/invokeai/.venv/bin/python << 'PYEOF'
+import os, shutil
+from huggingface_hub import snapshot_download
+
+# (repo_id, subfolder_or_None, dest)
+items = [
+    ('InvokeAI/t5-v1_1-xxl', 'bnb_llm_int8', '/workspace/invokeai/root/models/any/t5_encoder/t5_bnb_int8_quantized_encoder'),
+    ('InvokeAI/clip-vit-large-patch14-text-encoder', 'bfloat16', '/workspace/invokeai/root/models/any/clip_embed/clip-vit-large-patch14'),
+    ('InvokeAI/clip-vit-large-patch14', None, '/workspace/invokeai/root/models/any/clip_vision/clip-vit-large-patch14'),
+    ('InstantX/FLUX.1-dev-Controlnet-Union', None, '/workspace/invokeai/root/models/flux/controlnet/FLUX.1-dev-Controlnet-Union'),
+]
+ok = True
+for repo_id, subfolder, dest in items:
+    if os.path.isdir(dest) and os.listdir(dest):
+        print(f'(pomijam - juz pobrane) {repo_id}')
+        continue
+    tmp = dest + '.tmp_download'
+    try:
+        print(f'--- pobieram {repo_id}{"::" + subfolder if subfolder else ""} -> {dest} ---')
+        if subfolder:
+            snapshot_download(repo_id=repo_id, allow_patterns=f'{subfolder}/*', local_dir=tmp)
+            src = os.path.join(tmp, subfolder)
+            os.makedirs(dest, exist_ok=True)
+            for name in os.listdir(src):
+                shutil.move(os.path.join(src, name), os.path.join(dest, name))
+        else:
+            snapshot_download(repo_id=repo_id, local_dir=dest)
+    except Exception as e:
+        print(f'UWAGA: nie udalo sie pobrac {repo_id}: {e}')
+        ok = False
+    finally:
+        if subfolder:
+            shutil.rmtree(tmp, ignore_errors=True)
+raise SystemExit(0 if ok else 1)
+PYEOF
+then
+    echo "OK: T5-XXL/CLIP-L/CLIP ViT-L/ControlNet Union gotowe."
 else
-    echo "(pomijam LoRA Add Detail - Slider - CIVITAI_API_KEY nieustawiony)"
+    echo "UWAGA: co najmniej jeden z T5-XXL/CLIP-L/CLIP ViT-L/ControlNet Union nie pobral sie poprawnie - patrz log wyzej. Bez T5/CLIP-L FLUX NIE WYGENERUJE obrazu - dociagnij recznie przez Model Manager. Kontynuuje." >&2
 fi
 
 log_elapsed "=== [4/4] Start InvokeAI (pierwszy plan, port 9090) ==="

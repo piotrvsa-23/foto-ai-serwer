@@ -4,6 +4,14 @@
 # Budowany etapami — patrz historia commitow po kazdym ukonczonym etapie.
 # Wersje pinowane celowo, nie "latest" (patrz koncepcja-i-zasady-budowy.md, pkt 4.2).
 #
+# GALAZ flux-v01 (sierpien 2026): rownolegly wariant do glownej galezi
+# (claude/foto-ai-runpod-setup-zzw2vi), zbudowany na bazie stanu v04 -
+# ten sam wzorzec (jeden checkpoint zaszyty w obrazie + reszta modeli
+# pobierana automatycznie w start.sh), ale z checkpointem FLUX.1-dev
+# zamiast SDXL, do porownania jakosci/mozliwosci miedzy silnikami. Historia
+# v1-v15/v6.14.0 ponizej dotyczy glownej galezi - ta galaz odgalezia sie
+# od commita v04 i nie jest z nia scalana automatycznie.
+#
 # v15 (sierpien 2026) — PIVOT: ComfyUI + SwarmUI + wszystkie wtyczki ComfyUI
 # (etapy 2/3/5 z wersji v1-v14) zostaly CALKOWICIE USUNIETE. Uzytkownik
 # zdecydowal sie pracowac wylacznie w InvokeAI. Konsekwencja funkcjonalna,
@@ -112,60 +120,48 @@ print('torch cuda (build):', torch.version.cuda)" \
     | tee /opt/build-versions.txt
 
 # ==============================================================================
-# v6.14.0_v01_CyberRXL_v10 (sierpien 2026) — na wyrazna prosbe uzytkownika,
-# po realnych testach na RunPod: zaszywamy JEDEN, juz wybrany i przetestowany
-# checkpoint (CyberRealisticXL V10.0 FP16) BEZPOSREDNIO W OBRAZIE, budowany
-# raz w CI (szybkie, stabilne lacze), zamiast liczyc na pobieranie go co
-# sesje przez UI InvokeAI w przegladarce - to ostatnie bylo w praktyce
-# zawodne dla tego pliku (wielokrotne zawieszki bez ani jednego pobranego
-# bajtu, potwierdzone w logu InvokeAI - plik jest skladowany przez
-# HuggingFace w systemie "Xet"). Zwykle pobieranie przez curl na koncowce
-# resolve/main dziala mimo Xet - HuggingFace serwuje ten sam plik przez
-# zwykle przekierowanie HTTP niezaleznie od backendu skladowania - to
-# dokladnie ten sam mechanizm, ktory juz dzialal w v1-v14 dla modeli ComfyUI.
+# flux.1_v01 (sierpien 2026) — WARIANT ROWNOLEGLY do v6.14.0_v04_CyberRXL_v10,
+# na wyrazna prosbe uzytkownika: ten sam schemat co v04 (JEDEN checkpoint
+# zaszyty na stale w obrazie + dodatkowe modele pobierane automatycznie w
+# runtime przez start.sh), ale z innym silnikiem generowania - FLUX.1-dev
+# (transformer, architektura rectified-flow) zamiast SDXL - do porownania
+# jakosci/mozliwosci z CyberRealisticXL.
 #
-# LoRA swiadomie NIE sa tu zaszywane (decyzja z uzytkownikiem) - to male
-# pliki (pojedyncze-kilkaset MB), wiec zaszywanie nie daje realnej oszczednosci
-# czasu, a uzytkownik nadal aktywnie testuje/zmienia zestaw LoRA - kazda
-# zmiana wymagalaby pelnego rebuildu obrazu. Instaluje sie je przez UI,
-# teraz juz plynnie dzieki automatyzacji tokenow ponizej.
+# Checkpoint: shauray/flux.1-dev-uncensored-q4 (link podany przez uzytkownika)
+# - transformer FLUX.1-dev zmergowany z LoRA "uncensored", skwantyzowany do
+# bitsandbytes NF4 (potwierdzone przez opis modelu - "quantized to NF4",
+# wymaga biblioteki bitsandbytes do wczytania, ktora invokeai==6.14.0 juz
+# instaluje jako wlasna zaleznosc). Format pliku (pojedynczy .safetensors,
+# NF4) jest STRUKTURALNIE IDENTYCZNY z oficjalnym, wspieranym przez InvokeAI
+# checkpointem "InvokeAI/flux_dev::transformer/bnb_nf4/flux1-dev-bnb_nf4.safetensors"
+# (sprawdzone w zrodle InvokeAI, starter_models.py, wpis flux_dev_quantized) -
+# to nie przypadek, tylko ta sama, standardowa metoda kwantyzacji NF4 dla
+# transformerow FLUX, wiec InvokeAI powinien go rozpoznac i wczytac
+# analogicznie. UWAGA: to model spolecznosciowy/nieoficjalny (nie z
+# black-forest-labs ani InvokeAI) - w przeciwienstwie do CyberRealisticXL
+# (juz przetestowanego na tym projekcie) NIE mamy jeszcze potwierdzenia z
+# realnego uruchomienia na RunPod, ze wczytuje sie bezblednie.
+#
+# Brak weryfikacji SHA256 tego pliku (w przeciwienstwie do CyberRealisticXL) -
+# to model spolecznosciowy bez oficjalnej strony z opublikowanym hashem do
+# porownania (CyberRealisticXL mial taki na HuggingFace - Xet Pointer
+# Details). Integralnosc pobrania zabezpiecza tu tylko "curl --fail" (blad
+# przy niepelnym pobraniu) - jesli plik pobierze sie niepoprawnie, InvokeAI
+# odrzuci go przy probie wczytania (bledna suma kontrolna safetensors).
 # ==============================================================================
-
-# SHA256 z oficjalnej strony pliku na HuggingFace (Xet Pointer Details) -
-# build PADNIE, jesli pobrany plik nie zgadza sie z tym hashem (ochrona przed
-# cichym zaszyciem uciete/uszkodzonej kopii modelu w obrazie).
-RUN mkdir -p /workspace/invokeai/root/models/sdxl/main \
+RUN mkdir -p /workspace/invokeai/root/models/flux/main \
     && curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
         -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
-        -o /workspace/invokeai/root/models/sdxl/main/CyberRealisticXLPlay_V10.0_FP16.safetensors \
-        "https://huggingface.co/cyberdelia/CyberRealisticXL/resolve/main/CyberRealisticXLPlay_V10.0_FP16.safetensors" \
-    && echo "fd5e870b5bbce4bddeb64f4bb8e49c57f84ab793c0262a503f0123be435e667d  /workspace/invokeai/root/models/sdxl/main/CyberRealisticXLPlay_V10.0_FP16.safetensors" \
-        | sha256sum -c -
+        -o /workspace/invokeai/root/models/flux/main/flux1-dev-uncensored-nf4.safetensors \
+        "https://huggingface.co/shauray/flux.1-dev-uncensored-q4/resolve/main/diffusion_pytorch_model.safetensors"
 
-# ==============================================================================
-# v6.14.0_v04_CyberRXL_v10 (sierpien 2026) — PIVOT po nieudanych probach v03:
-# proby zaszycia dodatkowych modeli (VAE/IP-Adapter/ControlNet/LoRA) WPROST
-# W OBRAZIE (budowanych w GitHub Actions) padaly wielokrotnie na dwoch
-# niezaleznych problemach infrastruktury CI, niezwiazanych z samym kodem:
-# (1) darmowy runner GitHub Actions ma za malo miejsca na dysku (ok. 16-17GB)
-# na caly zestaw duzych plikow modeli razem z checkpointem, (2) buildy
-# wisialy w nieskonczonosc (~25-30 min, "duration_ms: 0", brak logow) -
-# przyczyna finalnie namierzona na cache-from/cache-to: type=gha w workflow
-# (naprawione w docker-build-test.yml/docker-push.yml), ale to pokazalo, ze
-# CI GitHub Actions to zawodne, kruche miejsce na duze pobierania plikow.
-#
-# Decyzja: obraz WRACA do prostego stanu jak v02 (TYLKO checkpoint zaszyty
-# na stale, sprawdzony, szybki build ~5 min). Dodatkowe modele (VAE,
-# IP-Adapter, wybrane ControlNety, SwinIR, LoRA z Civitai) NIE sa juz
-# zaszywane w obrazie - zamiast tego scripts/start.sh sam je pobiera
-# automatycznie PRZY KAZDYM STARCIE PODA na RunPod, PRZED uruchomieniem
-# InvokeAI. RunPod ma duzo wiecej miejsca na dysku i stabilniejsze lacze niz
-# wspoldzielony runner CI, wiec te same pobierania, ktore zawodzily w
-# GitHub Actions, dzialaja tu bez problemu - to jest DOKLADNIE ten sam kod
-# (huggingface_hub.snapshot_download / curl), tylko przeniesiony z czasu
-# budowania obrazu na czas startu kontenera. Zobacz scripts/start.sh po
-# szczegoly listy pobieranych modeli i uzasadnienie wyboru kazdego z nich.
-# ==============================================================================
+# Dodatkowe modele (VAE, T5/CLIP encodery, IP-Adapter, ControlNet, upscaler)
+# NIE sa zaszywane w obrazie (ten sam wzorzec co v6.14.0_v04_CyberRXL_v10 -
+# patrz galaz claude/foto-ai-runpod-setup-zzw2vi, uzasadnienie w Dockerfile
+# tamtej galezi: CI GitHub Actions okazalo sie zawodne/kruche dla duzych
+# pobieran). scripts/start.sh na TEJ galezi pobiera je automatycznie przy
+# kazdym starcie poda - zestaw dobrany pod architekture FLUX (inny niz SDXL
+# w v04), patrz komentarze w scripts/start.sh.
 
 # invokeai.yaml zaszyty w obrazie z jednym kluczowym ustawieniem:
 # scan_models_on_startup: true. Bez tego zaszyty wyzej plik .safetensors
@@ -188,11 +184,11 @@ EOF
 
 # ==============================================================================
 # Skrypt startowy — jedyna rzecz uruchamiana automatycznie przy starcie poda.
-# Poza checkpointem zaszytym wyzej, DODATKOWE modele (VAE, IP-Adapter,
-# wybrane ControlNety, SwinIR, LoRA z Civitai) NIE sa czescia obrazu -
+# Poza checkpointem FLUX zaszytym wyzej, DODATKOWE modele (VAE, T5/CLIP
+# encodery, IP-Adapter, ControlNet Union, SwinIR) NIE sa czescia obrazu -
 # start.sh sam je automatycznie pobiera przy KAZDYM starcie poda, przed
-# uruchomieniem InvokeAI (patrz uzasadnienie w sekcji v6.14.0_v04 wyzej
-# i komentarze w samym scripts/start.sh).
+# uruchomieniem InvokeAI. Patrz komentarze w samym scripts/start.sh po
+# pelna liste i uzasadnienie doboru kazdego elementu.
 # ==============================================================================
 COPY scripts/start.sh /workspace/scripts/start.sh
 RUN chmod +x /workspace/scripts/start.sh
