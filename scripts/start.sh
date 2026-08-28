@@ -156,14 +156,32 @@ mkdir -p /workspace/invokeai/root/models/flux/main \
          /workspace/invokeai/root/models/flux/controlnet \
          /workspace/invokeai/root/models/any/upscale
 
+# NAPRAWA (sierpien 2026, po realnym tescie na RunPod): pliki z huggingface.co
+# pobierane zwyklym curl (bez tokenu) potrafia byc drastycznie ograniczane
+# predkosciowo (throttling anonimowych pobran) - potwierdzone realnie na
+# checkpoincie GGUF (~1.4MB/s, czyli >2h na 12.7GB, mimo ze polaczenie samo
+# w sobie dziala stabilnie, bez przerw). Krok [2/4] wyzej loguje juz
+# HUGGINGFACE_TOKEN do biblioteki Pythona (huggingface_hub.login()), ale to
+# NIE dotyczy naszych wlasnych, reczych wywolan curl - trzeba dolozyc
+# naglowek Authorization jawnie. Dotyczy TYLKO URL-i z huggingface.co (nie
+# np. SwinIR z github.com, gdzie token HF nie ma zastosowania).
+hf_curl_auth_args() {
+    local url="$1"
+    if [[ "$url" == *"huggingface.co"* ]] && [ -n "${HUGGINGFACE_TOKEN:-}" ]; then
+        printf '%s\0%s\0' "-H" "Authorization: Bearer ${HUGGINGFACE_TOKEN}"
+    fi
+}
+
 download_if_missing() {
     local dest="$1" url="$2" max_time="${3:-900}"
     if [ -s "$dest" ]; then
         echo "(pomijam - juz pobrane) $(basename "$dest")"
         return 0
     fi
+    local -a auth_args=()
+    while IFS= read -r -d '' arg; do auth_args+=("$arg"); done < <(hf_curl_auth_args "$url")
     if curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time "$max_time" \
-            -o "$dest" "$url"; then
+            "${auth_args[@]}" -o "$dest" "$url"; then
         echo "OK: $(basename "$dest")"
     else
         echo "UWAGA: nie udalo sie pobrac $(basename "$dest") - kontynuuje bez niego." >&2
@@ -186,11 +204,14 @@ download_big_with_progress() {
         echo "(pomijam - juz pobrane) $(basename "$dest")"
         return 0
     fi
+    local -a auth_args=()
+    while IFS= read -r -d '' arg; do auth_args+=("$arg"); done < <(hf_curl_auth_args "$url")
+
     local total_bytes
-    total_bytes=$(curl -sI -L "$url" 2>/dev/null | grep -i '^content-length:' | tail -1 | tr -d '\r' | awk '{print $2}')
+    total_bytes=$(curl -sI -L "${auth_args[@]}" "$url" 2>/dev/null | grep -i '^content-length:' | tail -1 | tr -d '\r' | awk '{print $2}')
 
     curl -sS -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time "$max_time" \
-        -o "$dest" "$url" &
+        "${auth_args[@]}" -o "$dest" "$url" &
     local curl_pid=$!
 
     while kill -0 "$curl_pid" 2>/dev/null; do
