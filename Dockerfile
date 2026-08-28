@@ -121,47 +121,57 @@ print('torch cuda (build):', torch.version.cuda)" \
 
 # ==============================================================================
 # flux.1_v01 (sierpien 2026) — WARIANT ROWNOLEGLY do v6.14.0_v04_CyberRXL_v10,
-# na wyrazna prosbe uzytkownika: ten sam schemat co v04 (JEDEN checkpoint
-# zaszyty na stale w obrazie + dodatkowe modele pobierane automatycznie w
-# runtime przez start.sh), ale z innym silnikiem generowania - FLUX.1-dev
-# (transformer, architektura rectified-flow) zamiast SDXL - do porownania
-# jakosci/mozliwosci z CyberRealisticXL.
+# na wyrazna prosbe uzytkownika: silnik FLUX zamiast SDXL, do porownania
+# jakosci/mozliwosci z CyberRealisticXL. W przeciwienstwie do v04, ZADEN
+# checkpoint NIE jest tu zaszyty w obrazie (patrz uzasadnienie nizej) -
+# obraz to "goly" InvokeAI, a WSZYSTKIE modele (glowny checkpoint + VAE/T5/
+# CLIP/IP-Adapter/ControlNet/upscaler) pobiera automatycznie scripts/start.sh
+# przy starcie poda.
 #
-# Checkpoint: shauray/flux.1-dev-uncensored-q4 (link podany przez uzytkownika)
-# - transformer FLUX.1-dev zmergowany z LoRA "uncensored", skwantyzowany do
-# bitsandbytes NF4 (potwierdzone przez opis modelu - "quantized to NF4",
-# wymaga biblioteki bitsandbytes do wczytania, ktora invokeai==6.14.0 juz
-# instaluje jako wlasna zaleznosc). Format pliku (pojedynczy .safetensors,
-# NF4) jest STRUKTURALNIE IDENTYCZNY z oficjalnym, wspieranym przez InvokeAI
-# checkpointem "InvokeAI/flux_dev::transformer/bnb_nf4/flux1-dev-bnb_nf4.safetensors"
-# (sprawdzone w zrodle InvokeAI, starter_models.py, wpis flux_dev_quantized) -
-# to nie przypadek, tylko ta sama, standardowa metoda kwantyzacji NF4 dla
-# transformerow FLUX, wiec InvokeAI powinien go rozpoznac i wczytac
-# analogicznie. UWAGA: to model spolecznosciowy/nieoficjalny (nie z
-# black-forest-labs ani InvokeAI) - w przeciwienstwie do CyberRealisticXL
-# (juz przetestowanego na tym projekcie) NIE mamy jeszcze potwierdzenia z
-# realnego uruchomienia na RunPod, ze wczytuje sie bezblednie.
+# HISTORIA DECYZJI (wazne, zeby nie powtorzyc bledu):
+# Pierwsza wersja tej galezi zaszywala tu checkpoint
+# shauray/flux.1-dev-uncensored-q4 (link podany przez uzytkownika). Po
+# realnym tescie na RunPod InvokeAI oznaczyl go jako "Unknown" - niemozliwy
+# do wybrania w generowaniu. Przyczyne potwierdzono na 100% (inspekcja
+# naglowka pliku .safetensors bezposrednio z HuggingFace, bez pobierania
+# calego pliku): to NIE jest surowy checkpoint w formacie BFL/InvokeAI
+# (klucze "double_blocks."), tylko model w formacie HuggingFace Diffusers
+# (klucze "transformer_blocks.", "x_embedder." itd., config.json z
+# "_class_name": "FluxTransformer2DModel") - mimo ze realnie jest
+# skwantyzowany bitsandbytes-NF4 (obecne klucze "quant_state.bitsandbytes__nf4"),
+# InvokeAI szuka konkretnie tej BFL-owej konwencji nazw i jej tu nie znajduje.
+# Diffusers-format wymagalby innej struktury (folder z config.json, nie
+# pojedynczy plik) i nie dawalo pewnosci powodzenia bez kolejnego cyklu
+# testow na RunPod.
 #
-# Brak weryfikacji SHA256 tego pliku (w przeciwienstwie do CyberRealisticXL) -
-# to model spolecznosciowy bez oficjalnej strony z opublikowanym hashem do
-# porownania (CyberRealisticXL mial taki na HuggingFace - Xet Pointer
-# Details). Integralnosc pobrania zabezpiecza tu tylko "curl --fail" (blad
-# przy niepelnym pobraniu) - jesli plik pobierze sie niepoprawnie, InvokeAI
-# odrzuci go przy probie wczytania (bledna suma kontrolna safetensors).
+# ROZWIAZANIE: zamiast tego uzywamy "Flux Unchained" w formacie GGUF
+# (kwantyzacja Q8_0, ~12.7GB, GraydientPlatformAPI/flux-unchained na
+# HuggingFace) - format GGUF jest naglosc wspierany przez InvokeAI 6.14.0
+# (Main_GGUF_FLUX_Config + FluxGGUFCheckpointModel) i to KONKRETNIE ta
+# rodzina modeli ("Flux Unchained") jest wymieniona z nazwy/linku w
+# zrodle InvokeAI (invokeai/backend/model_manager/load/model_loaders/flux.py,
+# komentarz przy obejsciu bledu ksztaltu img_in.weight: "Example model with
+# this issue (Q4_K_M): civitai.com/models/705823/ggufk-flux-unchained-km-quants") -
+# najmocniejszy mozliwy sygnal kompatybilnosci (deweloperzy InvokeAI faktycznie
+# testowali i naprawiali obsluge tej rodziny plikow). "Unchained" to wariant
+# FLUX.1-dev bez wbudowanych ograniczen tresci (odpowiednik "uncensored").
+# Q8_0 (nie Q6_K) wybrany pod RTX 4090 (24GB VRAM) - najwyzsza jakosc kwantyzacji
+# ktora nadal wygodnie miesci sie w VRAM razem z T5/CLIP/VAE (~18GB razem).
+#
+# Checkpoint (12.7GB) pobiera sie w RUNTIME (scripts/start.sh), NIE w obrazie -
+# ten sam powod co reszta dodatkow (patrz nizej i galaz
+# claude/foto-ai-runpod-setup-zzw2vi): CI GitHub Actions ma za malo miejsca
+# na dysku na duze pliki (potwierdzone realnym bledem "no space left on
+# device" przy probie v03), a 12.7GB to jeszcze wiecej niz to, co tam padlo.
 # ==============================================================================
-RUN mkdir -p /workspace/invokeai/root/models/flux/main \
-    && curl -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 900 \
-        -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
-        -o /workspace/invokeai/root/models/flux/main/flux1-dev-uncensored-nf4.safetensors \
-        "https://huggingface.co/shauray/flux.1-dev-uncensored-q4/resolve/main/diffusion_pytorch_model.safetensors"
 
-# Dodatkowe modele (VAE, T5/CLIP encodery, IP-Adapter, ControlNet, upscaler)
-# NIE sa zaszywane w obrazie (ten sam wzorzec co v6.14.0_v04_CyberRXL_v10 -
-# patrz galaz claude/foto-ai-runpod-setup-zzw2vi, uzasadnienie w Dockerfile
-# tamtej galezi: CI GitHub Actions okazalo sie zawodne/kruche dla duzych
-# pobieran). scripts/start.sh na TEJ galezi pobiera je automatycznie przy
-# kazdym starcie poda - zestaw dobrany pod architekture FLUX (inny niz SDXL
-# w v04), patrz komentarze w scripts/start.sh.
+# Dodatkowe modele (glowny checkpoint GGUF, VAE, T5/CLIP encodery, IP-Adapter,
+# ControlNet, upscaler) NIE sa zaszywane w obrazie - ten sam wzorzec co
+# v6.14.0_v04_CyberRXL_v10 (patrz galaz claude/foto-ai-runpod-setup-zzw2vi,
+# uzasadnienie w Dockerfile tamtej galezi: CI GitHub Actions okazalo sie
+# zawodne/kruche dla duzych pobieran). scripts/start.sh na TEJ galezi pobiera
+# je automatycznie przy kazdym starcie poda - zestaw dobrany pod architekture
+# FLUX (inny niz SDXL w v04), patrz komentarze w scripts/start.sh.
 
 # invokeai.yaml zaszyty w obrazie z jednym kluczowym ustawieniem:
 # scan_models_on_startup: true. Bez tego zaszyty wyzej plik .safetensors
