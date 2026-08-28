@@ -250,6 +250,80 @@ download_big_with_progress() {
     fi
 }
 
+# POPRAWKA (28.08.2026, po kolejnym realnym tescie na RunPod): --location-trusted
+# (poprzednia poprawka) NIE przyspieszyl pobierania checkpointu (dalej ~1.6MB/s
+# w realnym logu). Przyczyna dogrzebana do konca przez bezposredni trace (curl -v):
+# URL CDN, na ktory przekierowuje /resolve/main/ dla tego pliku, zawiera w
+# parametrach "user_id=public&X-Xet-Cas-Uid=public" - czyli HuggingFace i tak
+# wydaje PUBLICZNY, anonimowy podpisany link (bo repo jest publiczne), zupelnie
+# NIEZALEZNIE od tego, czy nasz naglowek Authorization dotarl. Token nigdy nie
+# mogl przyspieszyc pobierania przez zwykly curl - dostep jest i tak przyznawany
+# na "public" tier. Pliki skladowane w systemie Xet maja jednak dedykowany,
+# oficjalny klienta - biblioteke "hf_xet" (juz zainstalowana jako zaleznosc
+# huggingface_hub, patrz log builda: "hf-xet==1.6.0") - ktora pobiera dane
+# WIELOMA rownoleglymi polaczeniami zamiast jednego strumienia curl, co jest
+# case'em, do ktorego ten protokol/CDN jest realnie zaprojektowany. Ponizsza
+# funkcja uzywa oficjalnej funkcji biblioteki (huggingface_hub.hf_hub_download,
+# ktora automatycznie wykrywa i uzywa hf_xet dla repo/plikow Xet) zamiast curl -
+# TO INNY mechanizm niz wczesniej hangujacy wewnetrzny downloader InvokeAI
+# (ktory dostawal surowy URL przez REST API /api/v2/models/install, nie
+# repo_id+filename przez wlasciwa, oficjalna funkcje biblioteki).
+#
+# Progres liczony przez podglad rozmiaru pliku ".incomplete" w tymczasowym
+# cache_dir (hf_hub_download z local_dir najpierw sciaga do cache, potem
+# atomowo kopiuje/linkuje do miejsca docelowego - stad NIE mozna polling'owac
+# bezposrednio docelowej sciezki, jak przy curl, ktory pisze wprost do niej).
+download_checkpoint_via_hf_hub() {
+    local dest="$1" repo_id="$2" filename="$3" interval="${4:-20}"
+    if [ -s "$dest" ]; then
+        echo "(pomijam - juz pobrane) $(basename "$dest")"
+        return 0
+    fi
+    local dest_dir tmp_cache result_file
+    dest_dir=$(dirname "$dest")
+    tmp_cache="${dest_dir}/.hf_cache_tmp"
+    mkdir -p "$tmp_cache"
+    result_file="${tmp_cache}/.resolved_path"
+
+    # Celowo BEZ "local_dir=" - sam "cache_dir" daje stabilna, od dawna
+    # niezmienna strukture (blobs/<hash>.incomplete w trakcie pobierania),
+    # niezaleznie od wersji huggingface_hub. Zwrocona sciezka to plik/symlink
+    # do gotowego blobu - kopiujemy go (cp -L, rozwiazuje symlink) na miejsce
+    # docelowe dopiero PO ukonczeniu pobierania.
+    HF_XET_HIGH_PERFORMANCE=1 /workspace/invokeai/.venv/bin/python -c "
+import os
+from huggingface_hub import hf_hub_download
+path = hf_hub_download(
+    repo_id='${repo_id}',
+    filename='${filename}',
+    cache_dir='${tmp_cache}',
+    token=os.environ.get('HUGGINGFACE_TOKEN') or None,
+)
+with open('${result_file}', 'w') as f:
+    f.write(path)
+" &
+    local py_pid=$!
+
+    while kill -0 "$py_pid" 2>/dev/null; do
+        sleep "$interval"
+        local cur_bytes cur_mb
+        cur_bytes=$(find "$tmp_cache" -name "*.incomplete" -exec stat -c%s {} \; 2>/dev/null | sort -n | tail -1)
+        cur_bytes=${cur_bytes:-0}
+        cur_mb=$((cur_bytes / 1024 / 1024))
+        echo "  ... pobieram (hf_xet) $(basename "$dest"): ${cur_mb}MB"
+    done
+
+    wait "$py_pid"
+    local rc=$?
+    if [ "$rc" -eq 0 ] && [ -s "$result_file" ]; then
+        cp -L "$(cat "$result_file")" "$dest"
+        echo "OK: $(basename "$dest")"
+    else
+        echo "UWAGA: nie udalo sie pobrac $(basename "$dest") przez hf_hub_download/hf_xet - kontynuuje bez niego." >&2
+    fi
+    rm -rf "$tmp_cache"
+}
+
 # GLOWNY CHECKPOINT (Flux Unchained, GGUF Q8_0, ~12.7GB) - zwykly curl, NIE
 # REST API InvokeAI (naprawa po realnym niepowodzeniu na RunPod, sierpien
 # 2026): pierwsza wersja tego kroku zlecala pobranie przez wewnetrzny
@@ -274,10 +348,11 @@ download_big_with_progress() {
 # download_big_with_progress (nie zwykly download_if_missing) - wypisuje
 # jawne linie postepu co 20s, zeby bylo widac w logu RunPod, ze pobieranie
 # tego duzego pliku realnie idzie do przodu.
-download_big_with_progress \
+download_checkpoint_via_hf_hub \
     "/workspace/invokeai/root/models/flux/main/fluxunchained-dev-q8-0-v2.gguf" \
-    "https://huggingface.co/GraydientPlatformAPI/flux-unchained/resolve/main/fluxunchained-dev-q8-0-v2.gguf" \
-    1800 20
+    "GraydientPlatformAPI/flux-unchained" \
+    "fluxunchained-dev-q8-0-v2.gguf" \
+    20
 
 download_if_missing \
     "/workspace/invokeai/root/models/flux/vae/ae.safetensors" \

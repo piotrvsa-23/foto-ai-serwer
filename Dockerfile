@@ -185,6 +185,23 @@ print('torch cuda (build):', torch.version.cuda)" \
 # dodanie --location-trusted, ktore wymusza zachowanie naglowka po zmianie
 # hosta - bezpieczne, bo docelowy host to zawsze infrastruktura CDN samego
 # HuggingFace, nie przypadkowa trzecia strona.
+#
+# POPRAWKA v04 (28.08.2026): --location-trusted NIE przyspieszyl pobierania w
+# realnym tescie (dalej ~1.6MB/s w logu RunPod). Root cause dogrzebany do
+# konca przez bezposredni trace (curl -v): URL CDN, na ktory przekierowuje
+# ten plik, zawiera w parametrach "user_id=public&X-Xet-Cas-Uid=public" - HF
+# wydaje PUBLICZNY, anonimowy podpisany link (bo repo jest publiczne),
+# NIEZALEZNIE od tego, czy naglowek Authorization dotarl. Token nigdy nie
+# mogl przyspieszyc pobierania przez zwykly curl. Naprawa: checkpoint
+# pobiera sie teraz przez oficjalna funkcje biblioteki
+# huggingface_hub.hf_hub_download (scripts/start.sh,
+# download_checkpoint_via_hf_hub), ktora automatycznie wykrywa i uzywa
+# dedykowanego klienta "hf_xet" (rownolegle, wieloczesciowe pobieranie -
+# dokladnie do tego zaprojektowany protokol/CDN) zamiast pojedynczego
+# strumienia curl. To INNY mechanizm niz wczesniej hangujacy wewnetrzny
+# downloader InvokeAI (ktory dostawal surowy URL przez REST API, nie
+# repo_id+filename przez wlasciwa funkcje biblioteki) - nie powinien miec
+# tego samego problemu.
 # ==============================================================================
 
 # Dodatkowe modele (glowny checkpoint GGUF, VAE, T5/CLIP encodery, IP-Adapter,
