@@ -1,0 +1,23 @@
+name: Diagnostyka - trace przekierowania + naglowka Authorization (jednorazowe)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: curl -v z fikcyjnym tokenem, BEZ --location-trusted (kontrola)
+        run: |
+          echo "===== BEZ --location-trusted (obecne domyslne zachowanie curl -L) ====="
+          curl -v -L -H "Authorization: Bearer FAKE_TRACE_TOKEN_ABC123" \
+            "https://huggingface.co/GraydientPlatformAPI/flux-unchained/resolve/main/fluxunchained-dev-q8-0-v2.gguf" \
+            -o /dev/null --max-time 15 2>&1 | grep -iE "^(> GET|> Host|> Authorization|< HTTP|< location)" || true
+
+      - name: curl -v z fikcyjnym tokenem, --location-trusted (poprawka)
+        run: |
+          echo "===== Z --location-trusted (poprawka) ====="
+          curl -v -L --location-trusted -H "Authorization: Bearer FAKE_TRACE_TOKEN_ABC123" \
+            "https://huggingface.co/GraydientPlatformAPI/flux-unchained/resolve/main/fluxunchained-dev-q8-0-v2.gguf" \
+            -o /dev/null --max-time 15 2>&1 | grep -iE "^(> GET|> Host|> Authorization|< HTTP|< location)" || true
