@@ -170,6 +170,51 @@ download_if_missing() {
     fi
 }
 
+# Jak download_if_missing, ale z JAWNYMI liniami postepu co "interval" sekund
+# (domyslnie 20s) - dla duzych plikow (checkpoint GGUF, kilkanascie GB).
+# Powod: domyslny licznik postepu curl aktualizuje sie w miejscu (znak \r),
+# co w viewerze logow RunPod nie wyswietla sie czytelnie jako kolejne linie -
+# uzytkownik widzi cisze przez kilka-kilkanascie minut i nie ma jak
+# odroznic "normalnie trwa" od "utknelo" (realny problem zgloszony przy
+# tescie tego skryptu). Ta funkcja odpytuje rozmiar czesciowo pobranego
+# pliku w tle i wypisuje osobna linie z MB/procentem - kazda linia ma wlasny
+# znacznik czasu w logu RunPod, wiec od razu widac czy pobieranie idzie do
+# przodu, czy realnie stoi w miejscu.
+download_big_with_progress() {
+    local dest="$1" url="$2" max_time="${3:-1800}" interval="${4:-20}"
+    if [ -s "$dest" ]; then
+        echo "(pomijam - juz pobrane) $(basename "$dest")"
+        return 0
+    fi
+    local total_bytes
+    total_bytes=$(curl -sI -L "$url" 2>/dev/null | grep -i '^content-length:' | tail -1 | tr -d '\r' | awk '{print $2}')
+
+    curl -sS -L --fail --retry 3 --retry-delay 5 --connect-timeout 15 --max-time "$max_time" \
+        -o "$dest" "$url" &
+    local curl_pid=$!
+
+    while kill -0 "$curl_pid" 2>/dev/null; do
+        sleep "$interval"
+        local cur_bytes cur_mb
+        cur_bytes=$(stat -c%s "$dest" 2>/dev/null || echo 0)
+        cur_mb=$((cur_bytes / 1024 / 1024))
+        if [ -n "$total_bytes" ] && [ "$total_bytes" -gt 0 ] 2>/dev/null; then
+            local total_mb=$((total_bytes / 1024 / 1024))
+            local pct=$((cur_bytes * 100 / total_bytes))
+            echo "  ... pobieram $(basename "$dest"): ${cur_mb}MB / ${total_mb}MB (${pct}%)"
+        else
+            echo "  ... pobieram $(basename "$dest"): ${cur_mb}MB (nieznany calkowity rozmiar)"
+        fi
+    done
+
+    wait "$curl_pid"
+    if [ $? -eq 0 ]; then
+        echo "OK: $(basename "$dest")"
+    else
+        echo "UWAGA: nie udalo sie pobrac $(basename "$dest") - kontynuuje bez niego." >&2
+    fi
+}
+
 # GLOWNY CHECKPOINT (Flux Unchained, GGUF Q8_0, ~12.7GB) - zwykly curl, NIE
 # REST API InvokeAI (naprawa po realnym niepowodzeniu na RunPod, sierpien
 # 2026): pierwsza wersja tego kroku zlecala pobranie przez wewnetrzny
@@ -191,10 +236,13 @@ download_if_missing() {
 # (potwierdzone dla CyberRealisticXL od v01).
 # max-time podniesiony do 30 minut (zamiast domyslnych 15) - plik ma ~12.7GB,
 # przy wolniejszym laczu domyslny limit moglby przerwac pobieranie w polowie.
-download_if_missing \
+# download_big_with_progress (nie zwykly download_if_missing) - wypisuje
+# jawne linie postepu co 20s, zeby bylo widac w logu RunPod, ze pobieranie
+# tego duzego pliku realnie idzie do przodu.
+download_big_with_progress \
     "/workspace/invokeai/root/models/flux/main/fluxunchained-dev-q8-0-v2.gguf" \
     "https://huggingface.co/GraydientPlatformAPI/flux-unchained/resolve/main/fluxunchained-dev-q8-0-v2.gguf" \
-    1800
+    1800 20
 
 download_if_missing \
     "/workspace/invokeai/root/models/flux/vae/ae.safetensors" \
