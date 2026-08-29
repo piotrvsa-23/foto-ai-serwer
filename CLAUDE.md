@@ -91,6 +91,28 @@ modelu przez InvokeAI, ComfyUI, SwarmUI czy inne narzędzie w tym projekcie):**
    zewnętrzny runner z pełnym dostępem do sieci (np. tymczasowy,
    jednorazowy workflow GitHub Actions), tak jak zrobiono w tym incydencie.
 
+## Monitorowanie buildów CI/CD (KRYTYCZNE, doprecyzowane na prośbę użytkownika)
+
+Podział odpowiedzialności po wyzwoleniu builda jest ścisły i dwustronny:
+
+- **Claude pilnuje ETAPU BUDOWY.** Po wypchnięciu commita, który wyzwala
+  `docker-build-test.yml`, Claude MA sprawdzać co ok. 15 minut, czy
+  build-test przeszedł. Jeśli **przeszedł (zielony)** — Claude MA **sam,
+  bez pytania o zgodę**, wyzwolić `docker-push.yml` na właściwym branchu
+  z właściwym tagiem (dokładna nazwa tagu = ta, którą Claude podał w
+  wiadomości commita). Jeśli **padł (czerwony)** — Claude diagnozuje i
+  naprawia, tak jak dotychczas.
+- **Użytkownik pilnuje ETAPU WYNIKU.** Po wyzwoleniu `docker-push.yml`
+  przez Claude, **Claude NIE sprawdza już**, czy obraz faktycznie wylądował
+  na Docker Hub (ani przez `ScheduleWakeup`, ani przez dodatkowe
+  zapytania) — to należy wyłącznie do użytkownika, który ma na to
+  własny sposób monitorowania.
+
+Krótko: **build-test = Claude, push = Claude wyzwala automatycznie po
+zielonym build-teście, potwierdzenie na Docker Hub = użytkownik.** Wyjątek
+od drugiego punktu: użytkownik wprost prosi o sprawdzenie Docker Hub
+("sprawdź czy weszło", "co z dockerem").
+
 ## Kontekst projektu
 
 Pełny kontekst koncepcyjny i techniczny: patrz `koncepcja-i-zasady-budowy.md` i `brief-techniczny-serwer-obrobki-zdjec.md` w głównym katalogu repo — Claude Code czyta je w całości na starcie pracy nad tym projektem.
