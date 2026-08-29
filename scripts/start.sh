@@ -436,12 +436,22 @@ fi
 # powinien wtedy tylko zweryfikowac/zarejestrowac juz gotowe pliki, bez
 # ponownego pobierania ich wlasnym, wolnym downloaderem.
 #
-# UWAGA - NIEPOTWIERDZONA JESZCZE REALNYM TESTEM optymalizacja (teoria przez
-# analogie do dzialajacego mechanizmu, nie identyczny, juz przetestowany
-# przypadek). Dlatego z zabezpieczeniem: jesli to szybkie pobieranie sie nie
-# uda (np. zmiana struktury repo na HF), [4/4] nizej automatycznie wraca do
-# sprawdzonego, wolniejszego zrodla "repo_id::subfolder".
-export T5_LOCAL_DEST="/workspace/invokeai/root/models/any/t5_encoder/t5-v1_1-xxl_bnb_llm_int8"
+# UWAGA - poprzednia wersja tej poprawki (flux.1_v06) miala realny bug,
+# potwierdzony testem na RunPod: sciezka docelowa lezala WEWNATRZ drzewa
+# modeli InvokeAI (models/any/t5_encoder/...). InvokeAI przy KAZDYM starcie
+# automatycznie skanuje CALY folder modeli (scan_models_on_startup) - ten
+# skaner znalazl juz-pobrane pliki T5 ZANIM krok [4/4] zdazyl je poprawnie
+# zainstalowac przez REST API, i pomylil sie DOKLADNIE tak samo jak w
+# oryginalnym, dawno naprawionym bledzie (zly, za gleboki poziom folderu:
+# "text_encoder_2/text_encoder_2/config.json" - identyczny mechanizm jak w
+# opisie T5Encoder_BnBLLMint8_Config ponizej) - w efekcie w Model Manager
+# pojawial sie dodatkowy, smieciowy wpis "text_encoder_2" (Unknown) obok
+# poprawnie zainstalowanego T5. Naprawa: sciezka docelowa przeniesiona
+# CALKOWICIE POZA folder modeli InvokeAI (/workspace/t5_staging/...) -
+# scan_models_on_startup skanuje TYLKO wnetrze /workspace/invokeai/root/
+# models/, wiec nigdy nie zobaczy tych plikow przed [4/4] REST API install
+# (ktory sam je stamtad skopiuje/przeniesie do wlasciwego miejsca).
+export T5_LOCAL_DEST="/workspace/t5_staging/t5-v1_1-xxl_bnb_llm_int8"
 if [ -d "$T5_LOCAL_DEST" ] && [ -n "$(ls -A "$T5_LOCAL_DEST" 2>/dev/null)" ]; then
     echo "(pomijam - T5-XXL int8 juz pobrany) $T5_LOCAL_DEST"
 else

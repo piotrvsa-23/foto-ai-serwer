@@ -231,6 +231,24 @@ print('torch cuda (build):', torch.version.cuda)" \
 # zabezpieczeniem: jesli szybkie pobieranie sie nie uda, automatyczny powrot
 # do sprawdzonego (ale wolniejszego) zrodla siecowego repo_id::subfolder.
 # WYMAGA POTWIERDZENIA REALNYM TESTEM NA RUNPOD.
+#
+# POPRAWKA v07 (29.08.2026, po realnym tescie na RunPod - PREDKOSC
+# POTWIERDZONA: T5 pobrany w 56 sekund zamiast ~15 minut): sama koncepcja
+# dziala, ale ujawnila sie realna wada - sciezka docelowa
+# (T5_LOCAL_DEST) lezala WEWNATRZ drzewa modeli InvokeAI
+# (models/any/t5_encoder/...). InvokeAI przy KAZDYM starcie automatycznie
+# skanuje CALY folder modeli (scan_models_on_startup) - ten skaner znalazl
+# swiezo pobrane pliki T5 ZANIM krok [4/4] zdazyl je poprawnie zainstalowac
+# przez REST API, i pomylil sie DOKLADNIE tak samo jak w oryginalnym,
+# dawno naprawionym bledzie (zly, za gleboki poziom folderu -
+# "text_encoder_2/text_encoder_2/config.json", identyczny mechanizm jak
+# opisany wyzej dla T5Encoder_BnBLLMint8_Config) - w Model Manager
+# pojawial sie dodatkowy, smieciowy wpis "text_encoder_2" (Unknown) obok
+# poprawnie zainstalowanego T5 (finalna instalacja przez REST API i tak
+# konczyla sie sukcesem, ale z tym bezuzytecznym duplikatem w tle).
+# Naprawa: sciezka docelowa przeniesiona CALKOWICIE POZA folder modeli
+# InvokeAI (/workspace/t5_staging/...) - scan_models_on_startup skanuje
+# TYLKO wnetrze models/, wiec nigdy nie zobaczy tych plikow przed [4/4].
 # ==============================================================================
 
 # Dodatkowe modele (glowny checkpoint GGUF, VAE, T5/CLIP encodery, IP-Adapter,
