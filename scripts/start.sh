@@ -414,6 +414,58 @@ else
     echo "UWAGA: co najmniej jeden z CLIP ViT-L/ControlNet Union nie pobral sie poprawnie - patrz log wyzej. Kontynuuje." >&2
 fi
 
+# PRZYSPIESZENIE T5-XXL int8 (29.08.2026, na prosbe uzytkownika - caly start
+# poda trwal ~19 minut, z czego wiekszosc to WYLACZNIE wolne pobieranie T5
+# przez wewnetrzny downloader InvokeAI w [4/4] nizej, ktory NIE uzywa hf_xet).
+#
+# Teoria oparta na tym, co juz potwierdzil realny test naprawy CLIP-L:
+# poprawna rejestracja modelu zalezy od SPOSOBU instalacji (jawne, EXPLICIT
+# zrodlo - czy to repo_id, czy lokalna sciezka na dysku - zawsze poprawnie
+# probuje PODANA sciezke jako korzen modelu), NIE od tego, skad fizycznie
+# wziely sie bajty na dysku. Zawodny jest tylko scan_models_on_startup
+# (heurystyczne skanowanie CALEGO drzewa modeli, zeby znalezc "osierocone"
+# pliki) - jawna instalacja (REST API, z repo_id LUB z lokalnej sciezki) tego
+# problemu nie ma.
+#
+# Ten krok pobiera pliki T5 WCZESNIEJ, przez snapshot_download (hf_xet,
+# rownolegle, szybko - jak checkpoint), do lokalnego folderu o STRUKTURZE
+# IDENTYCZNEJ z ta, ktora tworzy udana instalacja REST API (patrz URL-e w
+# logu RunPod: bnb_llm_int8/text_encoder_2/... i bnb_llm_int8/tokenizer_2/...
+# jako dwa rodzenstwo-podfoldery pod korzeniem modelu). [4/4] nizej zleca
+# instalacje z TEJ LOKALNEJ SCIEZKI zamiast z repo_id::subfolder - InvokeAI
+# powinien wtedy tylko zweryfikowac/zarejestrowac juz gotowe pliki, bez
+# ponownego pobierania ich wlasnym, wolnym downloaderem.
+#
+# UWAGA - NIEPOTWIERDZONA JESZCZE REALNYM TESTEM optymalizacja (teoria przez
+# analogie do dzialajacego mechanizmu, nie identyczny, juz przetestowany
+# przypadek). Dlatego z zabezpieczeniem: jesli to szybkie pobieranie sie nie
+# uda (np. zmiana struktury repo na HF), [4/4] nizej automatycznie wraca do
+# sprawdzonego, wolniejszego zrodla "repo_id::subfolder".
+export T5_LOCAL_DEST="/workspace/invokeai/root/models/any/t5_encoder/t5-v1_1-xxl_bnb_llm_int8"
+if [ -d "$T5_LOCAL_DEST" ] && [ -n "$(ls -A "$T5_LOCAL_DEST" 2>/dev/null)" ]; then
+    echo "(pomijam - T5-XXL int8 juz pobrany) $T5_LOCAL_DEST"
+else
+    echo "--- pobieram (hf_xet) InvokeAI/t5-v1_1-xxl::bnb_llm_int8 -> $T5_LOCAL_DEST ---"
+    /workspace/invokeai/.venv/bin/python << 'PYEOF'
+import os, shutil
+from huggingface_hub import snapshot_download
+
+dest = os.environ['T5_LOCAL_DEST']
+tmp = dest + '.tmp_download'
+try:
+    snapshot_download(repo_id='InvokeAI/t5-v1_1-xxl', allow_patterns='bnb_llm_int8/*', local_dir=tmp)
+    src = os.path.join(tmp, 'bnb_llm_int8')
+    os.makedirs(dest, exist_ok=True)
+    for name in os.listdir(src):
+        shutil.move(os.path.join(src, name), os.path.join(dest, name))
+    print('OK: T5-XXL int8 pobrany (hf_xet).')
+except Exception as e:
+    print(f'UWAGA: nie udalo sie szybko pobrac T5-XXL int8 (hf_xet), [4/4] uzyje wolniejszego zrodla sieciowego: {e}')
+finally:
+    shutil.rmtree(tmp, ignore_errors=True)
+PYEOF
+fi
+
 # [4/4] T5-XXL int8 - PRZEZ WLASNE REST API INVOKEAI, nie recznym
 # kopiowaniem plikow (sierpien 2026, naprawa po realnym niepowodzeniu na
 # RunPod):
@@ -468,13 +520,25 @@ if [ "$API_READY" -eq 1 ]; then
     echo "OK: API gotowe. Zlecam instalacje T5-XXL int8 + CLIP-L text encoder..."
     /workspace/invokeai/.venv/bin/python << 'PYEOF'
 import json
+import os
 import time
 import urllib.parse
 import urllib.request
 
 API = "http://127.0.0.1:9090/api/v2/models"
+
+# T5: uzyj lokalnej sciezki (juz pobranej szybko przez hf_xet wyzej), jesli
+# faktycznie istnieje i nie jest pusta - w przeciwnym razie (np. szybkie
+# pobieranie sie nie udalo) wroc do sprawdzonego, wolniejszego zrodla
+# sieciowego "repo_id::subfolder".
+_t5_local = os.environ.get("T5_LOCAL_DEST", "")
+if _t5_local and os.path.isdir(_t5_local) and os.listdir(_t5_local):
+    _t5_source = _t5_local
+else:
+    _t5_source = "InvokeAI/t5-v1_1-xxl::bnb_llm_int8"
+
 SOURCES = [
-    "InvokeAI/t5-v1_1-xxl::bnb_llm_int8",
+    _t5_source,
     "InvokeAI/clip-vit-large-patch14-text-encoder::bfloat16",
 ]
 

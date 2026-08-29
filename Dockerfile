@@ -215,6 +215,22 @@ print('torch cuda (build):', torch.version.cuda)" \
 # poziom za gleboko - poprzedni komentarz w tym miejscu BLEDNIE zakladal
 # (bez realnego testu), ze CLIP-L dziala poprawnie tym mechanizmem. Naprawa:
 # CLIP-L przeniesiony do [4/4], na to samo REST API InvokeAI co T5.
+#
+# POPRAWKA v06 (29.08.2026, EKSPERYMENTALNA - jeszcze niepotwierdzona
+# realnym testem): caly start poda trwal ~19 minut, z czego wiekszosc to
+# T5-XXL int8 pobierany PRZEZ WEWNETRZNY, WOLNY downloader InvokeAI (REST
+# API) - w przeciwienstwie do checkpointu (hf_xet, 83s dla 12.7GB), REST
+# API InvokeAI nie uzywa hf_xet. Teoria oparta na realnym sukcesie naprawy
+# CLIP-L: poprawna rejestracja zalezy od SPOSOBU instalacji (jawne zrodlo -
+# repo_id LUB lokalna sciezka - zawsze poprawnie probuje PODANA sciezke jako
+# korzen), nie od tego, skad wziely sie bajty. scripts/start.sh teraz
+# NAJPIERW pobiera T5 szybko przez snapshot_download (hf_xet) do lokalnego
+# folderu o strukturze identycznej z ta z udanej instalacji REST API, potem
+# zleca REST API instalacje z TEJ LOKALNEJ SCIEZKI zamiast z repo_id -
+# powinno to dac szybkosc hf_xet przy zachowaniu poprawnej rejestracji. Z
+# zabezpieczeniem: jesli szybkie pobieranie sie nie uda, automatyczny powrot
+# do sprawdzonego (ale wolniejszego) zrodla siecowego repo_id::subfolder.
+# WYMAGA POTWIERDZENIA REALNYM TESTEM NA RUNPOD.
 # ==============================================================================
 
 # Dodatkowe modele (glowny checkpoint GGUF, VAE, T5/CLIP encodery, IP-Adapter,
