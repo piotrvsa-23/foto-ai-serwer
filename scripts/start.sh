@@ -366,57 +366,52 @@ download_if_missing \
     "/workspace/invokeai/root/models/any/upscale/003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-L_x4_GAN-with-dict-keys-params-and-params_ema.pth" \
     "https://github.com/JingyunLiang/SwinIR/releases/download/v0.0/003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-L_x4_GAN-with-dict-keys-params-and-params_ema.pth"
 
-# CLIP-L text encoder (::subfolder w oficjalnym repo InvokeAI) i foldery
-# diffusers (CLIP ViT-L image encoder, ControlNet Union) - snapshot_download
-# zamiast pojedynczego curl. Dla wpisu "::subfolder" pobieramy tylko ten
-# podfolder (allow_patterns) i splaszczamy go do docelowego katalogu, bo
-# InvokeAI oczekuje plikow bezposrednio w folderze modelu, nie w
-# zagniezdzonym podfolderze. UWAGA: T5-XXL int8 (ten sam wzorzec zrodla,
-# "InvokeAI/t5-v1_1-xxl::bnb_llm_int8") CELOWO NIE jest tu pobierany -
-# realny test na RunPod pokazal, ze mimo poprawnej struktury plikow na
-# dysku automatyczny skaner InvokeAI (scan_models_on_startup) rejestruje go
-# na zlym poziomie zagniezdzenia folderow i model ladowal sie jako
-# "Unknown" (bezuzyteczny). CLIP-L text encoder z tego samego mechanizmu
-# (subfolder "bfloat16") dziala poprawnie - to specyficzny problem tylko
-# klasy T5Encoder_BnBLLMint8_Config, patrz [4/4] nizej po wlasciwa naprawe.
+# CLIP ViT-L image encoder i ControlNet Union (foldery diffusers, BEZ
+# subfolderu) - snapshot_download prosto do dest, dziala niezawodnie
+# (potwierdzone realnym testem na RunPod - oba rejestruja sie poprawnie).
+#
+# POPRAWKA (29.08.2026, po realnym tescie na RunPod): CLIP-L text encoder
+# ("InvokeAI/clip-vit-large-patch14-text-encoder::bfloat16") byl tu wczesniej
+# TEZ pobierany tym samym splaszczajacym mechanizmem co ponizsze dwa wpisy -
+# poprzedni komentarz w tym miejscu twierdzil, ze "dziala poprawnie", ale byl
+# to blad (nigdy nie zweryfikowany realnym testem, tylko zalozenie przez
+# analogie do T5). Realny test pokazal DOKLADNIE ten sam objaw co przy T5:
+# podfolder "bfloat16" w tym repo ma jeszcze JEDEN poziom zagniezdzenia
+# ("bfloat16/text_encoder/..."), wiec splaszczenie zostawia dest z
+# podfolderem "text_encoder/" w srodku zamiast plikow bezposrednio - skaner
+# InvokeAI rejestruje wiec ZLY poziom (nazwany "text_encoder" zamiast
+# "clip-vit-large-patch14", widoczne w Model Manager), co potem konczy sie
+# bledem "OSError: Repo id must be in the form...['.../text_encoder/
+# text_encoder']" przy probie uzycia modelu. Naprawa: CLIP-L przeniesiony do
+# [4/4] nizej, na WLASNE REST API InvokeAI (ten sam mechanizm co T5) - to
+# JEDYNY sprawdzony sposob poprawnej instalacji zrodel typu "repo::subfolder"
+# w tym projekcie.
 if /workspace/invokeai/.venv/bin/python << 'PYEOF'
 import os, shutil
 from huggingface_hub import snapshot_download
 
-# (repo_id, subfolder_or_None, dest)
+# (repo_id, dest) - BEZ subfolderu, snapshot_download prosto do dest
 items = [
-    ('InvokeAI/clip-vit-large-patch14-text-encoder', 'bfloat16', '/workspace/invokeai/root/models/any/clip_embed/clip-vit-large-patch14'),
-    ('InvokeAI/clip-vit-large-patch14', None, '/workspace/invokeai/root/models/any/clip_vision/clip-vit-large-patch14'),
-    ('InstantX/FLUX.1-dev-Controlnet-Union', None, '/workspace/invokeai/root/models/flux/controlnet/FLUX.1-dev-Controlnet-Union'),
+    ('InvokeAI/clip-vit-large-patch14', '/workspace/invokeai/root/models/any/clip_vision/clip-vit-large-patch14'),
+    ('InstantX/FLUX.1-dev-Controlnet-Union', '/workspace/invokeai/root/models/flux/controlnet/FLUX.1-dev-Controlnet-Union'),
 ]
 ok = True
-for repo_id, subfolder, dest in items:
+for repo_id, dest in items:
     if os.path.isdir(dest) and os.listdir(dest):
         print(f'(pomijam - juz pobrane) {repo_id}')
         continue
-    tmp = dest + '.tmp_download'
     try:
-        print(f'--- pobieram {repo_id}{"::" + subfolder if subfolder else ""} -> {dest} ---')
-        if subfolder:
-            snapshot_download(repo_id=repo_id, allow_patterns=f'{subfolder}/*', local_dir=tmp)
-            src = os.path.join(tmp, subfolder)
-            os.makedirs(dest, exist_ok=True)
-            for name in os.listdir(src):
-                shutil.move(os.path.join(src, name), os.path.join(dest, name))
-        else:
-            snapshot_download(repo_id=repo_id, local_dir=dest)
+        print(f'--- pobieram {repo_id} -> {dest} ---')
+        snapshot_download(repo_id=repo_id, local_dir=dest)
     except Exception as e:
         print(f'UWAGA: nie udalo sie pobrac {repo_id}: {e}')
         ok = False
-    finally:
-        if subfolder:
-            shutil.rmtree(tmp, ignore_errors=True)
 raise SystemExit(0 if ok else 1)
 PYEOF
 then
-    echo "OK: CLIP-L/CLIP ViT-L/ControlNet Union gotowe."
+    echo "OK: CLIP ViT-L/ControlNet Union gotowe."
 else
-    echo "UWAGA: co najmniej jeden z CLIP-L/CLIP ViT-L/ControlNet Union nie pobral sie poprawnie - patrz log wyzej. Kontynuuje." >&2
+    echo "UWAGA: co najmniej jeden z CLIP ViT-L/ControlNet Union nie pobral sie poprawnie - patrz log wyzej. Kontynuuje." >&2
 fi
 
 # [4/4] T5-XXL int8 - PRZEZ WLASNE REST API INVOKEAI, nie recznym
@@ -446,7 +441,13 @@ fi
 # bajtu dla plikow skladowanych w systemie Xet (patrz szczegoly przy
 # download_if_missing w [3/4] wyzej, gdzie checkpoint jest teraz pobierany
 # zwyklym curl).
-log_elapsed "=== [4/4] T5-XXL int8 przez REST API InvokeAI, potem start (port 9090) ==="
+#
+# POPRAWKA (29.08.2026): CLIP-L text encoder
+# ("InvokeAI/clip-vit-large-patch14-text-encoder::bfloat16") dolaczony do
+# SOURCES obok T5 - realny test wykazal DOKLADNIE ten sam blad zagniezdzenia
+# folderow, ktory wymusil przeniesienie T5 tutaj (patrz komentarz w [3/4]
+# wyzej) - CELOWO NIE jest juz pobierany recznym snapshot_download+flatten.
+log_elapsed "=== [4/4] T5-XXL int8 + CLIP-L text encoder przez REST API InvokeAI, potem start (port 9090) ==="
 export INVOKEAI_HOST=0.0.0.0
 export INVOKEAI_PORT=9090
 
@@ -464,7 +465,7 @@ for _ in $(seq 1 90); do
 done
 
 if [ "$API_READY" -eq 1 ]; then
-    echo "OK: API gotowe. Zlecam instalacje T5-XXL int8..."
+    echo "OK: API gotowe. Zlecam instalacje T5-XXL int8 + CLIP-L text encoder..."
     /workspace/invokeai/.venv/bin/python << 'PYEOF'
 import json
 import time
@@ -474,6 +475,7 @@ import urllib.request
 API = "http://127.0.0.1:9090/api/v2/models"
 SOURCES = [
     "InvokeAI/t5-v1_1-xxl::bnb_llm_int8",
+    "InvokeAI/clip-vit-large-patch14-text-encoder::bfloat16",
 ]
 
 
@@ -531,7 +533,7 @@ while pending and time.time() < deadline:
 if pending:
     print(f"UWAGA: instalacja nie zdazyla sie zakonczyc w limicie czasu (joby: {sorted(pending)}) - InvokeAI dokonczy ja w tle, moze byc niedostepna od razu po starcie.")
 else:
-    print("OK: T5-XXL int8 zainstalowany.")
+    print("OK: T5-XXL int8 + CLIP-L text encoder zainstalowane.")
 PYEOF
 else
     echo "UWAGA: REST API InvokeAI nie odpowiedzialo w 3 minuty - pomijam automatyczna instalacje T5, dociagnij ja recznie przez Model Manager." >&2

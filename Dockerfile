@@ -202,6 +202,19 @@ print('torch cuda (build):', torch.version.cuda)" \
 # downloader InvokeAI (ktory dostawal surowy URL przez REST API, nie
 # repo_id+filename przez wlasciwa funkcje biblioteki) - nie powinien miec
 # tego samego problemu.
+#
+# POPRAWKA v05 (29.08.2026, po realnym tescie na RunPod - CHECKPOINT
+# POTWIERDZONY: 12.7GB w 83 sekundy, hf_xet dziala doskonale): nowy blad -
+# CLIP-L text encoder ladowal sie z bledem "OSError: Repo id must be in the
+# form...['.../clip-vit-large-patch14/text_encoder/text_encoder']" przy
+# probie uzycia. Przyczyna DOKLADNIE ta sama, co wczesniej zmusila
+# przeniesienie T5 na REST API (patrz scripts/start.sh [4/4]): podfolder
+# "bfloat16" w repo InvokeAI/clip-vit-large-patch14-text-encoder ma
+# DODATKOWY poziom zagniezdzenia ("bfloat16/text_encoder/..."), wiec reczne
+# splaszczenie (snapshot_download + shutil.move) zostawialo pliki jeden
+# poziom za gleboko - poprzedni komentarz w tym miejscu BLEDNIE zakladal
+# (bez realnego testu), ze CLIP-L dziala poprawnie tym mechanizmem. Naprawa:
+# CLIP-L przeniesiony do [4/4], na to samo REST API InvokeAI co T5.
 # ==============================================================================
 
 # Dodatkowe modele (glowny checkpoint GGUF, VAE, T5/CLIP encodery, IP-Adapter,
