@@ -528,7 +528,7 @@ INVOKEAI_PID=$!
 # logu RunPod, ze skrypt czeka, a nie ze "wisi" bez powodu.
 echo "Czekam az REST API InvokeAI bedzie gotowe..."
 API_READY=0
-for i in $(seq 1 450); do
+for i in $(seq 1 300); do
     if curl -sf "http://127.0.0.1:9090/api/v1/app/version" >/dev/null 2>&1; then
         API_READY=1
         break
