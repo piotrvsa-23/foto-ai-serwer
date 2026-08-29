@@ -516,12 +516,25 @@ export INVOKEAI_PORT=9090
 /workspace/invokeai/.venv/bin/invokeai-web --root /workspace/invokeai/root &
 INVOKEAI_PID=$!
 
+# POPRAWKA (29.08.2026, po realnym niepowodzeniu na RunPod): limit 3 minut
+# (90x2s) okazal sie za krotki - realny test pokazal, ze wewnetrzny skan
+# modeli InvokeAI (scan_models_on_startup, hashowanie checkpointu GGUF i
+# reszty plikow) moze czasem trwac ponad 3.5 minuty (zalezne od predkosci
+# dysku konkretnego wezla RunPod), przez co skrypt poddawal sie 30s ZA
+# WCZESNIE i CALKOWICIE POMIJAL zlecenie instalacji T5+CLIP-L - w Model
+# Managerze nie bylo wtedy nic dla tych dwoch modeli, a przycisk "Invoke"
+# zostawal zablokowany (FLUX wymaga obu jako twardej zaleznosci). Limit
+# podniesiony do 15 minut, z logiem postepu co 30s, zeby bylo widac w
+# logu RunPod, ze skrypt czeka, a nie ze "wisi" bez powodu.
 echo "Czekam az REST API InvokeAI bedzie gotowe..."
 API_READY=0
-for _ in $(seq 1 90); do
+for i in $(seq 1 450); do
     if curl -sf "http://127.0.0.1:9090/api/v1/app/version" >/dev/null 2>&1; then
         API_READY=1
         break
+    fi
+    if [ $((i % 15)) -eq 0 ]; then
+        echo "  ... wciaz czekam na API InvokeAI (+${i}x2s = $((i * 2))s) - trwa wewnetrzny skan/hashowanie modeli"
     fi
     sleep 2
 done

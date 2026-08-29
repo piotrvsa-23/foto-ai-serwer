@@ -249,6 +249,21 @@ print('torch cuda (build):', torch.version.cuda)" \
 # Naprawa: sciezka docelowa przeniesiona CALKOWICIE POZA folder modeli
 # InvokeAI (/workspace/t5_staging/...) - scan_models_on_startup skanuje
 # TYLKO wnetrze models/, wiec nigdy nie zobaczy tych plikow przed [4/4].
+#
+# POPRAWKA v08 (29.08.2026, po realnym tescie na RunPod - potwierdzone: bug
+# z "text_encoder_2" (Unknown) zniknal, staging poza models/ dziala). Nowy
+# problem: limit czekania na start REST API InvokeAI w [4/4] (3 minuty,
+# 90x2s) okazal sie za krotki - realny test pokazal, ze wewnetrzny skan
+# modeli InvokeAI (scan_models_on_startup, hashowanie checkpointu GGUF i
+# reszty plikow) moze czasem trwac ponad 3.5 minuty (zalezne od predkosci
+# dysku konkretnego wezla RunPod - w tym tescie: 3min37s). Skrypt poddawal
+# sie 30 sekund ZA WCZESNIE i CALKOWICIE POMIJAL zlecenie instalacji T5+
+# CLIP-L (nie tylko opozniona, tylko w ogole nie zlecona) - w Model
+# Managerze nie bylo wiec nic dla tych dwoch modeli, a przycisk "Invoke"
+# zostawal trwale zablokowany (FLUX wymaga obu jako twardej zaleznosci, patrz
+# uzasadnienie CLIP-L/T5 wyzej). Naprawa: limit podniesiony do 15 minut
+# (450x2s), z logiem postepu co 30s, zeby bylo widac w logu RunPod, ze
+# skrypt czeka, a nie ze "wisi" bez powodu.
 # ==============================================================================
 
 # Dodatkowe modele (glowny checkpoint GGUF, VAE, T5/CLIP encodery, IP-Adapter,
