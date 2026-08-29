@@ -25,28 +25,27 @@ i jawnie je wyłączyć/zablokować w konfiguracji zapisanej w obrazie. Dotyczy 
 każdego etapu budowy, nie tylko SwarmUI — to sprawdzony, powtarzalny krok
 weryfikacyjny, nie jednorazowa poprawka.
 
-## Monitorowanie buildów CI/CD (KRYTYCZNE, na wyraźną prośbę użytkownika)
+## Monitorowanie buildów CI/CD (KRYTYCZNE, doprecyzowane na prośbę użytkownika)
 
-Po wyzwoleniu builda (`docker-build-test.yml`) lub pusha na Docker Hub
-(`docker-push.yml`) w GitHub Actions, Claude ma **TYLKO**:
-1. sprawdzić status na GitHub Actions (build-test przeszedł/padł, push
-   wyzwolony poprawnie),
-2. dać użytkownikowi jasny, krótki komunikat o tym, co zrobił (jaki tag,
-   jaki branch, czy build-test był zielony),
-3. **ZATRZYMAĆ SIĘ** — nie planować dalszych automatycznych sprawdzeń
-   (`ScheduleWakeup`) samego pusha ani nie sprawdzać Docker Hub.
+Podział odpowiedzialności po wyzwoleniu builda jest ścisły i dwustronny:
 
-**NIGDY nie sprawdzać samodzielnie, czy obraz faktycznie wylądował na
-Docker Hub** (ani przez zaplanowane przypomnienia, ani przez dodatkowe
-zapytania) — to marnuje tokeny/scheduler na coś, co użytkownik i tak sam
-monitoruje ręcznie (Docker Hub, RunPod). Wyjątek: użytkownik wprost prosi
-o sprawdzenie ("sprawdź czy się wypchnęło", "co z dockerem").
+- **Claude pilnuje ETAPU BUDOWY.** Po wypchnięciu commita, który wyzwala
+  `docker-build-test.yml`, Claude MA sprawdzać co ok. 15 minut, czy
+  build-test przeszedł. Jeśli **przeszedł (zielony)** — Claude MA **sam,
+  bez pytania o zgodę**, wyzwolić `docker-push.yml` na właściwym branchu
+  z właściwym tagiem (dokładna nazwa tagu = ta, którą Claude podał w
+  wiadomości commita). Jeśli **padł (czerwony)** — Claude diagnozuje i
+  naprawia, tak jak dotychczas.
+- **Użytkownik pilnuje ETAPU WYNIKU.** Po wyzwoleniu `docker-push.yml`
+  przez Claude, **Claude NIE sprawdza już**, czy obraz faktycznie wylądował
+  na Docker Hub (ani przez `ScheduleWakeup`, ani przez dodatkowe
+  zapytania) — to należy wyłącznie do użytkownika, który ma na to
+  własny sposób monitorowania.
 
-Powód tej zasady: build (`docker-build-test.yml`) TYLKO waliduje, że obraz
-się kompiluje — NIE wysyła nic na Docker Hub. Push (`docker-push.yml`)
-buduje obraz PONOWNIE od zera i wysyła go — to osobny, wolniejszy krok
-(10-20 min), którego wynik nie jest potrzebny Claude'owi do dalszej pracy,
-tylko użytkownikowi do testu na RunPod.
+Krótko: **build-test = Claude, push = Claude wyzwala automatycznie po
+zielonym build-teście, potwierdzenie na Docker Hub = użytkownik.** Wyjątek
+od drugiego punktu: użytkownik wprost prosi o sprawdzenie Docker Hub
+("sprawdź czy weszło", "co z dockerem").
 
 ## Kontekst projektu
 
