@@ -261,8 +261,8 @@ print('torch cuda (build):', torch.version.cuda)" \
 # CLIP-L (nie tylko opozniona, tylko w ogole nie zlecona) - w Model
 # Managerze nie bylo wiec nic dla tych dwoch modeli, a przycisk "Invoke"
 # zostawal trwale zablokowany (FLUX wymaga obu jako twardej zaleznosci, patrz
-# uzasadnienie CLIP-L/T5 wyzej). Naprawa: limit podniesiony do 10 minut
-# (300x2s), z logiem postepu co 30s, zeby bylo widac w logu RunPod, ze
+# uzasadnienie CLIP-L/T5 wyzej). Naprawa: limit podniesiony do 15 minut
+# (450x2s), z logiem postepu co 30s, zeby bylo widac w logu RunPod, ze
 # skrypt czeka, a nie ze "wisi" bez powodu.
 # ==============================================================================
 
