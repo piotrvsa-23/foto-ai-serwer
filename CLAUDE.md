@@ -25,6 +25,29 @@ i jawnie je wyłączyć/zablokować w konfiguracji zapisanej w obrazie. Dotyczy 
 każdego etapu budowy, nie tylko SwarmUI — to sprawdzony, powtarzalny krok
 weryfikacyjny, nie jednorazowa poprawka.
 
+## Monitorowanie buildów CI/CD (KRYTYCZNE, na wyraźną prośbę użytkownika)
+
+Po wyzwoleniu builda (`docker-build-test.yml`) lub pusha na Docker Hub
+(`docker-push.yml`) w GitHub Actions, Claude ma **TYLKO**:
+1. sprawdzić status na GitHub Actions (build-test przeszedł/padł, push
+   wyzwolony poprawnie),
+2. dać użytkownikowi jasny, krótki komunikat o tym, co zrobił (jaki tag,
+   jaki branch, czy build-test był zielony),
+3. **ZATRZYMAĆ SIĘ** — nie planować dalszych automatycznych sprawdzeń
+   (`ScheduleWakeup`) samego pusha ani nie sprawdzać Docker Hub.
+
+**NIGDY nie sprawdzać samodzielnie, czy obraz faktycznie wylądował na
+Docker Hub** (ani przez zaplanowane przypomnienia, ani przez dodatkowe
+zapytania) — to marnuje tokeny/scheduler na coś, co użytkownik i tak sam
+monitoruje ręcznie (Docker Hub, RunPod). Wyjątek: użytkownik wprost prosi
+o sprawdzenie ("sprawdź czy się wypchnęło", "co z dockerem").
+
+Powód tej zasady: build (`docker-build-test.yml`) TYLKO waliduje, że obraz
+się kompiluje — NIE wysyła nic na Docker Hub. Push (`docker-push.yml`)
+buduje obraz PONOWNIE od zera i wysyła go — to osobny, wolniejszy krok
+(10-20 min), którego wynik nie jest potrzebny Claude'owi do dalszej pracy,
+tylko użytkownikowi do testu na RunPod.
+
 ## Kontekst projektu
 
 Pełny kontekst koncepcyjny i techniczny: patrz `koncepcja-i-zasady-budowy.md` i `brief-techniczny-serwer-obrobki-zdjec.md` w głównym katalogu repo — Claude Code czyta je w całości na starcie pracy nad tym projektem.
